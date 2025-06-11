@@ -1,11 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
 
-// Force load .env file from current directory, overriding any global env vars
-dotenv.config({ path: path.join(__dirname, '../.env'), override: true });
+// Load .env file only in non-production environments
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config({ path: '../.env', override: true });
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
