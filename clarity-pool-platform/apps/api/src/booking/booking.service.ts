@@ -50,7 +50,7 @@ export class BookingService {
         address: widgetData.address.address,
         city: widgetData.address.city,
         state: widgetData.address.state,
-        zipCode: widgetData.address.zipcode,
+        zipCode: widgetData.address.zipCode,
       };
 
       // Create customer in Poolbrain
@@ -62,7 +62,7 @@ export class BookingService {
         address: widgetData.address.address,
         city: widgetData.address.city,
         state: widgetData.address.state,
-        zipcode: widgetData.address.zipCode,  // Get from address object
+        zipcode: widgetData.address.zipCode,  // Map capital C to lowercase for Poolbrain
         GateCode: widgetData.address.gateCode,
         accessNotes: widgetData.address.accessNotes,
         hasDogs: widgetData.address.hasDogs || 'no'
