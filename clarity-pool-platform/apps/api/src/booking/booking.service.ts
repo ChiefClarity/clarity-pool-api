@@ -23,7 +23,7 @@ export class BookingService {
       address: string;
       city: string;
       state: string;
-      zipcode: string;
+      zipCode: string;
       gateCode?: string;
       accessNotes?: string;
       hasDogs?: string;
