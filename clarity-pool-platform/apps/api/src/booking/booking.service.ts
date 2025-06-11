@@ -55,17 +55,17 @@ export class BookingService {
 
       // Create customer in Poolbrain
       const poolbrainResponse = await this.poolbrain.createCustomer({
-        firstName: bookingData.firstName,
-        lastName: bookingData.lastName,
-        email: bookingData.email,
-        phone: bookingData.phone,
-        address: bookingData.address,
-        city: bookingData.city,
-        state: bookingData.state,
-        zipcode: bookingData.zipCode,
+        firstName: widgetData.customer.firstName,
+        lastName: widgetData.customer.lastName,
+        email: widgetData.customer.email,
+        phone: widgetData.customer.contactNumber,
+        address: widgetData.address.address,
+        city: widgetData.address.city,
+        state: widgetData.address.state,
+        zipcode: widgetData.address.zipcode,  // Get from address object
         GateCode: widgetData.address.gateCode,
         accessNotes: widgetData.address.accessNotes,
-        hasDogs: widgetData.address.hasDogs || 'no'  // Add this with default
+        hasDogs: widgetData.address.hasDogs || 'no'
       });
 
       // Create customer in our database
