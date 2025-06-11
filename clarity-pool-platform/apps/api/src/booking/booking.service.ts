@@ -26,6 +26,7 @@ export class BookingService {
       zipcode: string;
       gateCode?: string;
       accessNotes?: string;
+      hasDogs?: string;
     };
     waterBodies: Array<{
       waterBodyName: string;
@@ -54,8 +55,17 @@ export class BookingService {
 
       // Create customer in Poolbrain
       const poolbrainResponse = await this.poolbrain.createCustomer({
-        ...bookingData,
+        firstName: bookingData.firstName,
+        lastName: bookingData.lastName,
+        email: bookingData.email,
+        phone: bookingData.phone,
+        address: bookingData.address,
+        city: bookingData.city,
+        state: bookingData.state,
         zipcode: bookingData.zipCode,
+        GateCode: widgetData.address.gateCode,
+        accessNotes: widgetData.address.accessNotes,
+        hasDogs: widgetData.address.hasDogs || 'no'  // Add this with default
       });
 
       // Create customer in our database
