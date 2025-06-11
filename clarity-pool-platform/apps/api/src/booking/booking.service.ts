@@ -62,7 +62,7 @@ export class BookingService {
         address: widgetData.address.address,
         city: widgetData.address.city,
         state: widgetData.address.state,
-        zipcode: widgetData.address.zipcode,  // Get from address object
+        zipcode: widgetData.address.zipCode,  // Get from address object
         GateCode: widgetData.address.gateCode,
         accessNotes: widgetData.address.accessNotes,
         hasDogs: widgetData.address.hasDogs || 'no'
