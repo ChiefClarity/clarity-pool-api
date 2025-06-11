@@ -11,7 +11,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   app.enableCors({
-    origin: true,
+    origin: [
+      'https://clarity-booking-widget.replit.app',
+      'https://www.getclarity.services',
+      'http://localhost:3000'
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
   
