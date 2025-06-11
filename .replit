@@ -1,7 +1,11 @@
-run = "cd clarity-pool-platform/apps/api && npm start"
+run = "cd clarity-pool-platform/apps/api && npm run start:dev"
 modules = ["nodejs-20"]
+
+[[ports]]
+localPort = 3000
+externalPort = 3001
 
 [deployment]
 build = ["sh", "-c", "cd clarity-pool-platform/apps/api && npm install && npm run build"]
-run = ["sh", "-c", "cd clarity-pool-platform/apps/api && npm run start:prod"]
+run = ["sh", "-c", "run = \"cd clarity-pool-platform/apps/api && npm run start:prod\""]
 deploymentTarget = "cloudrun"
