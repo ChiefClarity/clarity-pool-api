@@ -1,5 +1,10 @@
+
 run = "cd clarity-pool-platform/apps/api && npm start"
 modules = ["nodejs-20"]
+
+[[ports]]
+localPort = 3000
+externalPort = 80
 
 [deployment]
 build = ["sh", "-c", "cd clarity-pool-platform/apps/api && npm install && npm run build"]
