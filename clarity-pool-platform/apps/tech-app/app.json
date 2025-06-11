@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Clarity Tech",
+    "slug": "clarity-tech",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#EFEBE0"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.claritypool.tech",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to camera to capture pool photos and videos.",
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for voice notes.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to save captured media."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#EFEBE0"
+      },
+      "package": "com.claritypool.tech",
+      "permissions": ["CAMERA", "RECORD_AUDIO", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "clarity-pool-platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "tech-app": "cd apps/tech-app && npm start",
+    "api": "cd apps/api && npm run dev"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  }
+}

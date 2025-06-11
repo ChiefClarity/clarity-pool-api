@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id                Int      @id @default(autoincrement())
+  poolbrainId       Int      @unique
+  email             String   @unique
+  phone             String?
+  firstName         String
+  lastName          String
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  
+  bookingDate       DateTime
+  preferredDate     DateTime?
+  bookingSource     String   @default("website")
+  
+  appDownloaded     Boolean  @default(false)
+  appDownloadedAt   DateTime?
+  
+  onboardingSessions OnboardingSession[]
+  waterChemistry    WaterChemistry[]
+  equipment         Equipment[]
+  poolDetails       PoolDetails?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model OnboardingSession {
+  id            String   @id @default(uuid())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id])
+  technicianId  Int
+  technician    Technician @relation(fields: [technicianId], references: [id])
+  
+  status        OnboardingStatus @default(SCHEDULED)
+  scheduledFor  DateTime
+  startedAt     DateTime?
+  completedAt   DateTime?
+  
+  currentStep   Int      @default(0)
+  stepsCompleted Json    @default("[]")
+  
+  syncedToPoolbrain Boolean @default(false)
+  syncedAt         DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WaterChemistry {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id])
+  
+  chlorine      Float
+  ph            Float
+  alkalinity    Int
+  cyanuricAcid  Int
+  
+  calcium       Int?
+  salt          Int?
+  hasSaltSystem Boolean  @default(false)
+  tds           Int?
+  temperature   Int?
+  phosphates    Float?
+  copper        Float?
+  iron          Float?
+  orp           Int?
+  
+  notes         String?
+  
+  poolbrainSynced Boolean @default(false)
+  poolbrainJobId  Int?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Equipment {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id])
+  
+  pumpType              String
+  pumpManufacturer      String
+  pumpModel             String
+  pumpSerial            String?
+  pumpCondition         String?
+  pumpPhotoUrls         Json?
+  
+  filterType            String
+  filterManufacturer    String
+  filterModel           String?
+  filterCondition       String?
+  filterPhotoUrls       Json?
+  
+  sanitizerType         String
+  sanitizerManufacturer String?
+  sanitizerModel        String?
+  sanitizerCondition    String?
+  
+  heaterData           Json?
+  timerData            Json?
+  valveData            Json?
+  additionalEquipment  Json?
+  
+  notes                String?
+  
+  poolbrainSynced      Boolean @default(false)
+  
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model PoolDetails {
+  id            Int      @id @default(autoincrement())
+  customerId    Int      @unique
+  customer      Customer @relation(fields: [customerId], references: [id])
+  
+  type          String
+  shape         String
+  length        Float
+  width         Float
+  avgDepth      Float
+  deepEndDepth  Float
+  shallowEndDepth Float
+  volume        Float
+  
+  surfaceMaterial   String
+  surfaceCondition  String
+  surfaceStains     Boolean @default(false)
+  stainDescription  String?
+  
+  features          Json
+  deckAndFence      Json
+  environment       Json
+  
+  photoUrls         Json
+  
+  notes             String?
+  
+  poolbrainSynced   Boolean @default(false)
+  poolbrainWaterBodyId Int?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Technician {
+  id                Int      @id @default(autoincrement())
+  poolbrainId       Int?     @unique
+  email             String   @unique
+  name              String
+  phone             String?
+  
+  onboardingSessions OnboardingSession[]
+  
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum OnboardingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
