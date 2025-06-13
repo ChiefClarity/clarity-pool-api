@@ -12,9 +12,11 @@ async function bootstrap() {
   
   app.enableCors({
     origin: [
+      'http://localhost:3000',
       'https://clarity-booking-widget.replit.app',
+      'https://949bb9d9-20e5-4034-8684-cb259147ff61-00-a5qcmciupnit.picard.replit.dev:3000',
       'https://www.getclarity.services',
-      'http://localhost:3000'
+      /\.replit\.dev$/
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
