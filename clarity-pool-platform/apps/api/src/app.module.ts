@@ -11,6 +11,9 @@ import { CustomerModule } from './customer/customer.module';
 import { TechnicianModule } from './technician/technician.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { EmailModule } from './email/email.module';
+import { AuthModule } from './auth/auth.module';
+import { OffersModule } from './offers/offers.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -26,8 +29,10 @@ import { EmailModule } from './email/email.module';
     TechnicianModule,
     WebsocketModule,
     EmailModule,
+    AuthModule,
+    OffersModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}

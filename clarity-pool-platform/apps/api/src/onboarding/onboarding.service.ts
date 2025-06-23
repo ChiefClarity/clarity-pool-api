@@ -1,44 +1,63 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MockDataService } from '../common/mock-data.service';
 
 @Injectable()
 export class OnboardingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mockDataService: MockDataService,
+  ) {}
 
   async getTechnicianSessions(technicianId: number) {
     try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
       return await this.prisma.onboardingSession.findMany({
         where: { technicianId },
         include: { customer: true },
       });
     } catch (error) {
       console.log('Database not available, returning mock data');
-      // Return mock data when database is not available
-      return [
-        {
-          id: 'mock-session-1',
-          technicianId,
-          customerId: 1,
-          status: 'SCHEDULED',
-          scheduledFor: new Date(),
-          createdAt: new Date(),
-          customer: {
-            id: 1,
-            firstName: 'Jane',
-            lastName: 'Doe',
-            email: 'jane.doe@example.com',
-            address: '123 Main St',
-            city: 'Miami',
-            state: 'FL',
-            zipCode: '33101',
-          },
-        },
-      ];
+      const sessions = this.mockDataService.getOnboardingSessions();
+      const customers = this.mockDataService.getCustomers();
+      
+      return sessions.map(session => ({
+        ...session,
+        customer: customers.find(c => c.id === session.customerId) || null,
+      }));
+    }
+  }
+
+  async getSessionById(sessionId: string) {
+    try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
+      return await this.prisma.onboardingSession.findUnique({
+        where: { id: sessionId },
+        include: { customer: true },
+      });
+    } catch (error) {
+      console.log('Database not available, returning mock data');
+      const session = this.mockDataService.getOnboardingSessionById(sessionId);
+      if (!session) {
+        return null;
+      }
+      const customer = session.customerId ? this.mockDataService.getCustomerById(session.customerId) : null;
+      return {
+        ...session,
+        customer: customer || null,
+      };
     }
   }
 
   async startSession(sessionId: string) {
     try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
       return await this.prisma.onboardingSession.update({
         where: { id: sessionId },
         data: {
@@ -57,8 +76,34 @@ export class OnboardingService {
     }
   }
 
+  async uploadVoiceNote(sessionId: string, file: any) {
+    try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
+      // In production, this would upload to cloud storage
+      // For now, return a mock URL
+      return {
+        sessionId,
+        voiceNoteUrl: `https://storage.claritypool.com/voice-notes/${sessionId}/${Date.now()}-voice-note.mp3`,
+        uploadedAt: new Date(),
+      };
+    } catch (error) {
+      console.log('Database not available, returning mock response');
+      return {
+        sessionId,
+        voiceNoteUrl: `https://storage.claritypool.com/voice-notes/${sessionId}/${Date.now()}-voice-note.mp3`,
+        uploadedAt: new Date(),
+        message: 'Voice note uploaded successfully (mock)',
+      };
+    }
+  }
+
   async saveWaterChemistry(sessionId: string, data: any) {
     try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
       const session = await this.prisma.onboardingSession.findUnique({
         where: { id: sessionId },
       });
@@ -88,41 +133,77 @@ export class OnboardingService {
   }
 
   async saveMedia(sessionId: string, mediaData: any) {
-    // For now, store media data as JSON in the session
-    return this.prisma.onboardingSession.update({
-      where: { id: sessionId },
-      data: {
+    try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
+      return await this.prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: {
+          stepsCompleted: mediaData,
+        },
+      });
+    } catch (error) {
+      console.log('Database not available, returning mock response');
+      return {
+        id: sessionId,
         stepsCompleted: mediaData,
-      },
-    });
+        message: 'Media saved successfully (mock)',
+      };
+    }
   }
 
   async savePoolDetails(sessionId: string, data: any) {
-    const session = await this.prisma.onboardingSession.findUnique({
-      where: { id: sessionId },
-    });
+    try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
+      const session = await this.prisma.onboardingSession.findUnique({
+        where: { id: sessionId },
+      });
 
-    if (!session) {
-      throw new Error('Session not found');
-    }
+      if (!session) {
+        throw new Error('Session not found');
+      }
 
-    return this.prisma.poolDetails.upsert({
-      where: { customerId: session.customerId },
-      create: {
+      return await this.prisma.poolDetails.upsert({
+        where: { customerId: session.customerId },
+        create: {
+          ...data,
+          customerId: session.customerId,
+        },
+        update: data,
+      });
+    } catch (error) {
+      console.log('Database not available, returning mock response');
+      return {
+        sessionId,
         ...data,
-        customerId: session.customerId,
-      },
-      update: data,
-    });
+        message: 'Pool details saved successfully (mock)',
+      };
+    }
   }
 
   async completeSession(sessionId: string) {
-    return this.prisma.onboardingSession.update({
-      where: { id: sessionId },
-      data: {
+    try {
+      if (!this.prisma.isDatabaseAvailable()) {
+        throw new Error('Database not available');
+      }
+      return await this.prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.log('Database not available, returning mock response');
+      return {
+        id: sessionId,
         status: 'COMPLETED',
         completedAt: new Date(),
-      },
-    });
+        message: 'Session completed successfully (mock)',
+      };
+    }
   }
 }

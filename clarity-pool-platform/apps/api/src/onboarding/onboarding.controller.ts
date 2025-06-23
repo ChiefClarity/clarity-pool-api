@@ -1,18 +1,35 @@
-import { Controller, Get, Post, Put, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { OnboardingService } from './onboarding.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('api/onboarding')
+@UseGuards(JwtAuthGuard)
 export class OnboardingController {
   constructor(private onboardingService: OnboardingService) {}
 
-  @Get('technician/:technicianId/sessions')
+  @Get('sessions/technician/:technicianId')
   async getTechnicianSessions(@Param('technicianId') technicianId: string) {
     return this.onboardingService.getTechnicianSessions(parseInt(technicianId));
   }
 
-  @Post('sessions/:sessionId/start')
+  @Get('sessions/:sessionId')
+  async getSessionById(@Param('sessionId') sessionId: string) {
+    return this.onboardingService.getSessionById(sessionId);
+  }
+
+  @Put('sessions/:sessionId/start')
   async startSession(@Param('sessionId') sessionId: string) {
     return this.onboardingService.startSession(sessionId);
+  }
+
+  @Post('sessions/:sessionId/voice-note')
+  @UseInterceptors(FileInterceptor('audio'))
+  async uploadVoiceNote(
+    @Param('sessionId') sessionId: string,
+    @UploadedFile() file: any,
+  ) {
+    return this.onboardingService.uploadVoiceNote(sessionId, file);
   }
 
   @Put('sessions/:sessionId/water-chemistry')
