@@ -212,7 +212,9 @@ model Technician {
   id                Int      @id @default(autoincrement())
   poolbrainId       Int?     @unique
   email             String   @unique
-  name              String
+  firstName         String   // Add this
+  lastName          String   // Add this
+  name              String?  // Make optional for backward compatibility
   phone             String?
   passwordHash      String?
   

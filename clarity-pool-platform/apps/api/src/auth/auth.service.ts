@@ -55,7 +55,10 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName || user.name?.split(' ')[0] || 'User',
+        lastName: user.lastName || user.name?.split(' ').slice(1).join(' ') || '',
+        name: user.name || `${user.firstName} ${user.lastName}`,
+        displayName: user.displayName || user.name || `${user.firstName} ${user.lastName}`,
       },
       token: accessToken,
       refreshToken: refreshToken,

@@ -28,13 +28,24 @@ async function createTestTechnician() {
     // Create test technician
     const hashedPassword = await bcrypt.hash('test123', 10);
     
-    const technician = await prisma.technician.create({
-      data: {
-        email: 'test@claritypool.com',
+    const technician = await prisma.technician.upsert({
+      where: { email: 'test@claritypool.com' },
+      update: {
+        firstName: 'Test',
+        lastName: 'Technician',
         name: 'Test Technician',
         passwordHash: hashedPassword,
-        active: true
-      }
+        active: true,
+      },
+      create: {
+        email: 'test@claritypool.com',
+        firstName: 'Test',
+        lastName: 'Technician',
+        name: 'Test Technician',
+        passwordHash: hashedPassword,
+        phone: '555-0123',
+        active: true,
+      },
     });
 
     console.log('✅ Test technician created successfully!');
