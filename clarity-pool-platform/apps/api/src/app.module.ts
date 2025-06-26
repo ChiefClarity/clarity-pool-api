@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -20,6 +21,7 @@ import { SentryConfig } from './config/sentry.config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { SecurityMiddleware } from './common/middleware/security.middleware';
 import { SecurityConfig } from './config/security.config';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 @Module({
   imports: [
@@ -43,7 +45,15 @@ import { SecurityConfig } from './config/security.config';
     AIModule,
   ],
   controllers: [AppController],
-  providers: [AppService, SentryConfig, SecurityConfig],
+  providers: [
+    AppService, 
+    SentryConfig, 
+    SecurityConfig,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -83,6 +83,12 @@ export class SecurityConfig {
           return callback(null, true);
         }
         
+        // Allow Replit domains for development
+        if (origin.includes('.replit.dev') || origin.includes('.repl.co') || origin.includes('.replit.app')) {
+          console.log(`✅ Allowing Replit origin: ${origin}`);
+          return callback(null, true);
+        }
+        
         // Check allowed origins
         if (allOrigins.includes(origin)) {
           return callback(null, true);
