@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: clarity-pool-api
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd apps/api && npm install && npm run build
+    startCommand: cd apps/api && npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clarity-pool-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SENTRY_DSN
+        sync: false
+      - key: POOLBRAIN_API_URL
+        value: https://prodapi.poolbrain.com
+      - key: POOLBRAIN_API_KEY
+        sync: false
+      - key: RATE_LIMIT_USE_MEMORY
+        value: true
+      - key: ALLOWED_ORIGINS
+        value: https://www.getclarity.services
