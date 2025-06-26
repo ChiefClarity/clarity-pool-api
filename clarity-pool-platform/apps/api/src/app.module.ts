@@ -15,6 +15,7 @@ import { AuthModule } from './auth/auth.module';
 import { OffersModule } from './offers/offers.module';
 import { HealthModule } from './health/health.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { AIModule } from './ai/ai.module';
 import { SentryConfig } from './config/sentry.config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { SecurityMiddleware } from './common/middleware/security.middleware';
@@ -39,6 +40,7 @@ import { SecurityConfig } from './config/security.config';
     OffersModule,
     HealthModule,
     MonitoringModule,
+    AIModule,
   ],
   controllers: [AppController],
   providers: [AppService, SentryConfig, SecurityConfig],

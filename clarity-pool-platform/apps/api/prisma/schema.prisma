@@ -54,6 +54,13 @@ model OnboardingSession {
   syncedToPoolbrain Boolean @default(false)
   syncedAt         DateTime?
   
+  // Voice note fields
+  voiceNoteUrl    String?
+  voiceNoteDuration Int?
+  
+  // AI analysis relation
+  aiAnalysis      AIAnalysis?
+  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -155,6 +162,50 @@ model PoolDetails {
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model AIAnalysis {
+  id              Int              @id @default(autoincrement())
+  sessionId       String           @unique
+  session         OnboardingSession @relation(fields: [sessionId], references: [id])
+  
+  // Claude Analysis Results
+  overview        String           @db.Text
+  waterStatus     String           // balanced, needs_attention, critical
+  waterIssues     Json             // Array of issues
+  waterRecs       Json             // Array of recommendations
+  
+  // Gemini Vision Results
+  equipmentStatus String           // excellent, good, fair, poor
+  equipment       Json             // Identified equipment array with confidence scores
+  maintenanceNeeds Json            // Array of maintenance items
+  
+  // Google Maps Satellite Analysis
+  poolDimensions  Json?            // Detected pool size/shape from satellite
+  propertyFeatures Json?           // Trees, landscaping, etc.
+  satelliteImageUrl String?        // Stored satellite image URL
+  
+  // Cost Estimates (Claude)
+  immediateWork   Json             // Array of immediate work items
+  recommendedWork Json             // Array of recommended items
+  totalImmediate  Float
+  totalRecommended Float
+  
+  // Voice Note Analysis (Claude)
+  voiceTranscription String?      @db.Text
+  voiceSummary      String?       @db.Text
+  voiceInsights     Json?         // Key points extracted
+  
+  safetyIssues    Json             // Array of safety concerns
+  maintenancePlan Json             // Weekly, monthly, seasonal tasks
+  
+  // Metadata
+  analyzedAt      DateTime         @default(now())
+  approvedByCsm   Boolean          @default(false)
+  csmNotes        String?
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model Technician {
