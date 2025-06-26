@@ -26,20 +26,34 @@ export class AuthService {
           return result;
         }
       }
+      
+      throw new UnauthorizedException('Invalid credentials');
     } catch (error) {
-      console.log('Database not available, falling back to mock');
+      // Only fall back to mock if it's a connection error, not invalid credentials
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      
+      console.error('Database error:', error);
+      
+      // In production, this should throw a 503 Service Unavailable
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Service temporarily unavailable');
+      }
+      
+      // Development only - fallback to mock
+      if (email === 'test@claritypool.com' && password === 'test123') {
+        return {
+          id: 1,
+          email: 'test@claritypool.com',
+          firstName: 'Test',
+          lastName: 'Technician',
+          name: 'Test Technician (Mock - DB Unavailable)'
+        };
+      }
+      
+      throw new UnauthorizedException('Invalid credentials');
     }
-    
-    // Fall back to mock only if database fails
-    if (email === 'test@claritypool.com' && password === 'test123') {
-      return {
-        id: 1,
-        email: 'test@claritypool.com',
-        name: 'Test Technician (Mock)'
-      };
-    }
-    
-    return null;
   }
 
   async login(user: any) {
