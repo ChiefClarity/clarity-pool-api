@@ -2,33 +2,43 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { MockDataService } from '../common/mock-data.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private jwtService: JwtService,
     private mockDataService: MockDataService,
+    private prisma: PrismaService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    // Always return test user for test@claritypool.com/test123
-    if (email === 'test@claritypool.com' && password === 'test123') {
-      const testUser = this.mockDataService.getTechnician();
-      const { passwordHash, ...result } = testUser;
-      return result;
-    }
-
-    // In production, this would check against database
-    // For now, check against mock data
-    const technician = this.mockDataService.getTechnician();
-    if (technician.email === email) {
-      const isPasswordValid = await bcrypt.compare(password, technician.passwordHash);
-      if (isPasswordValid) {
-        const { passwordHash, ...result } = technician;
-        return result;
+    try {
+      // Check database first for real user
+      const technician = await this.prisma.technician.findUnique({
+        where: { email }
+      });
+      
+      if (technician && technician.passwordHash) {
+        const isValid = await bcrypt.compare(password, technician.passwordHash);
+        if (isValid) {
+          const { passwordHash, ...result } = technician;
+          return result;
+        }
       }
+    } catch (error) {
+      console.log('Database not available, falling back to mock');
     }
-
+    
+    // Fall back to mock only if database fails
+    if (email === 'test@claritypool.com' && password === 'test123') {
+      return {
+        id: 1,
+        email: 'test@claritypool.com',
+        name: 'Test Technician (Mock)'
+      };
+    }
+    
     return null;
   }
 

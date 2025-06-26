@@ -5,6 +5,26 @@ modules = ["nodejs-20"]
 localPort = 3000
 externalPort = 3001
 
+[[ports]]
+localPort = 17173
+externalPort = 3002
+exposeLocalhost = true
+
+[[ports]]
+localPort = 18370
+externalPort = 80
+exposeLocalhost = true
+
+[[ports]]
+localPort = 28773
+externalPort = 3000
+exposeLocalhost = true
+
+[[ports]]
+localPort = 38904
+externalPort = 3003
+exposeLocalhost = true
+
 [deployment]
 build = ["sh", "-c", "cd clarity-pool-platform/apps/api && npm install && npm run build"]
 run = ["sh", "-c", "run = \"cd clarity-pool-platform/apps/api && npm run start:prod\""]

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -162,6 +163,7 @@ model Technician {
   email             String   @unique
   name              String
   phone             String?
+  passwordHash      String?
   
   onboardingSessions OnboardingSession[]
   

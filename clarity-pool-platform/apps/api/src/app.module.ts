@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
@@ -13,10 +13,16 @@ import { WebsocketModule } from './websocket/websocket.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { OffersModule } from './offers/offers.module';
-import { HealthController } from './health/health.controller';
+import { HealthModule } from './health/health.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { SentryConfig } from './config/sentry.config';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { SecurityMiddleware } from './common/middleware/security.middleware';
+import { SecurityConfig } from './config/security.config';
 
 @Module({
   imports: [
+    SentryModule.forRoot(), // Add this first
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -31,8 +37,16 @@ import { HealthController } from './health/health.controller';
     EmailModule,
     AuthModule,
     OffersModule,
+    HealthModule,
+    MonitoringModule,
   ],
-  controllers: [AppController, HealthController],
-  providers: [AppService],
+  controllers: [AppController],
+  providers: [AppService, SentryConfig, SecurityConfig],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(SecurityMiddleware)
+      .forRoutes('*'); // Apply to all routes
+  }
+}
