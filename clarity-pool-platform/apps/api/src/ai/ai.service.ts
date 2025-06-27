@@ -33,19 +33,34 @@ export class AiService {
     // Initialize Gemini
     try {
       const apiKey = this.googleCloudAuth.getApiKey();
+      this.logger.log(`Gemini API key exists: ${!!apiKey}`);
+      
       if (apiKey) {
+        this.logger.log('Attempting to initialize Gemini...');
         this.genAI = new GoogleGenerativeAI(apiKey);
-        this.aiProviders.push({
-          name: 'Gemini',
-          available: true,
-          analyze: this.analyzeWithGemini.bind(this)
-        });
-        this.logger.log('✅ Gemini AI initialized');
-      } else if (this.googleCloudAuth.isUsingSecureAuth()) {
-        this.logger.warn('⚠️  Gemini SDK does not support service account auth yet - using fallback');
+        
+        // Test if it actually initialized
+        if (this.genAI) {
+          this.logger.log('✅ Gemini GoogleGenerativeAI object created');
+          
+          this.aiProviders.push({
+            name: 'Gemini',
+            available: true,
+            analyze: this.analyzeWithGemini.bind(this)
+          });
+          this.logger.log('✅ Gemini AI provider added to providers list');
+        } else {
+          this.logger.error('❌ Gemini GoogleGenerativeAI object is null after initialization');
+        }
+      } else {
+        this.logger.warn('No Gemini API key found');
+        if (this.googleCloudAuth.isUsingSecureAuth()) {
+          this.logger.warn('⚠️  Gemini SDK does not support service account auth yet - using fallback');
+        }
       }
     } catch (error) {
-      this.logger.error('Failed to initialize Gemini', error);
+      this.logger.error('❌ Failed to initialize Gemini:', error);
+      this.logger.error('Error details:', error.message);
     }
 
     // Initialize Anthropic as fallback
@@ -68,7 +83,9 @@ export class AiService {
       throw new Error('No AI providers available - check API configuration');
     }
 
-    this.logger.log(`Initialized ${this.aiProviders.length} AI provider(s): ${this.aiProviders.map(p => p.name).join(', ')}`);
+    // Log the providers array
+    this.logger.log(`AI Providers initialized: ${this.aiProviders.map(p => p.name).join(', ')}`);
+    this.logger.log(`Total providers: ${this.aiProviders.length}`);
   }
 
   async analyzeTestStrip(imageBase64: string, sessionId: string): Promise<any> {
@@ -105,11 +122,17 @@ export class AiService {
       
       this.logger.log(`S3 upload successful: ${uploadResult.url}`);
 
+      // Log available providers
+      this.logger.log(`Available AI providers: ${this.aiProviders.filter(p => p.available).map(p => p.name).join(', ')}`);
+
       // Try each AI provider in order
       let lastError: Error | null = null;
       
       for (const provider of this.aiProviders) {
-        if (!provider.available) continue;
+        if (!provider.available) {
+          this.logger.log(`Skipping ${provider.name} - marked as unavailable`);
+          continue;
+        }
         
         try {
           this.logger.log(`Attempting analysis with ${provider.name}...`);
