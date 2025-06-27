@@ -1,9 +1,7 @@
 import { Controller, Get, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { GoogleCloudAuthService } from '../common/google-cloud-auth.service';
 import { ConfigService } from '@nestjs/config';
 
-@ApiTags('ai-health')
 @Controller('ai/health')
 export class AiHealthController {
   private readonly logger = new Logger(AiHealthController.name);
@@ -14,8 +12,6 @@ export class AiHealthController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Check AI services configuration and health' })
-  @ApiResponse({ status: 200, description: 'AI services health status' })
   async checkHealth() {
     const authMethod = this.googleCloudAuth.getAuthMethod();
     const isSecure = this.googleCloudAuth.isUsingSecureAuth();
