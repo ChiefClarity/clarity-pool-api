@@ -1,41 +1,74 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 import Anthropic from '@anthropic-ai/sdk';
 import { Client as GoogleMapsClient } from '@googlemaps/google-maps-services-js';
 import { UploadsService } from '../uploads/uploads.service';
+import { GoogleCloudAuthService, GoogleAuthMethod } from '../common/google-cloud-auth.service';
+
+interface AIProvider {
+  name: string;
+  analyze: (imageUrl: string, prompt: string) => Promise<any>;
+  available: boolean;
+}
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private genAI: GoogleGenerativeAI;
-  private anthropic: Anthropic;
+  private genAI: GoogleGenerativeAI | null = null;
+  private anthropic: Anthropic | null = null;
   private googleMaps: GoogleMapsClient;
+  private aiProviders: AIProvider[] = [];
 
   constructor(
     private configService: ConfigService,
-    private uploadsService: UploadsService
+    private uploadsService: UploadsService,
+    private googleCloudAuth: GoogleCloudAuthService,
   ) {
-    console.log('🚨 [AI Service] Constructor called');
-    
-    const geminiKey = this.configService.get<string>('GEMINI_API_KEY');
-    const anthropicKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    const googleMapsKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY');
+    this.initializeAIProviders();
+    this.googleMaps = new GoogleMapsClient({});
+  }
 
-    console.log('🚨 [AI Service] Keys loaded:', {
-      gemini: !!geminiKey,
-      anthropic: !!anthropicKey,
-      googleMaps: !!googleMapsKey
-    });
-
-    if (!geminiKey || !anthropicKey || !googleMapsKey) {
-      this.logger.error('Missing AI API keys in environment variables');
-      throw new Error('AI service configuration error: Missing API keys');
+  private initializeAIProviders() {
+    // Initialize Gemini
+    try {
+      const apiKey = this.googleCloudAuth.getApiKey();
+      if (apiKey) {
+        this.genAI = new GoogleGenerativeAI(apiKey);
+        this.aiProviders.push({
+          name: 'Gemini',
+          available: true,
+          analyze: this.analyzeWithGemini.bind(this)
+        });
+        this.logger.log('✅ Gemini AI initialized');
+      } else if (this.googleCloudAuth.isUsingSecureAuth()) {
+        this.logger.warn('⚠️  Gemini SDK does not support service account auth yet - using fallback');
+      }
+    } catch (error) {
+      this.logger.error('Failed to initialize Gemini', error);
     }
 
-    this.genAI = new GoogleGenerativeAI(geminiKey);
-    this.anthropic = new Anthropic({ apiKey: anthropicKey });
-    this.googleMaps = new GoogleMapsClient({});
+    // Initialize Anthropic as fallback
+    try {
+      const anthropicKey = this.configService.get<string>('ANTHROPIC_API_KEY');
+      if (anthropicKey) {
+        this.anthropic = new Anthropic({ apiKey: anthropicKey });
+        this.aiProviders.push({
+          name: 'Claude',
+          available: true,
+          analyze: this.analyzeWithClaude.bind(this)
+        });
+        this.logger.log('✅ Claude AI initialized as fallback');
+      }
+    } catch (error) {
+      this.logger.error('Failed to initialize Claude', error);
+    }
+
+    if (this.aiProviders.length === 0) {
+      throw new Error('No AI providers available - check API configuration');
+    }
+
+    this.logger.log(`Initialized ${this.aiProviders.length} AI provider(s): ${this.aiProviders.map(p => p.name).join(', ')}`);
   }
 
   async analyzeTestStrip(imageBase64: string, sessionId: string): Promise<any> {
@@ -51,127 +84,184 @@ export class AiService {
         throw new BadRequestException('Session ID is required');
       }
       
-      // Log the image data size
-      this.logger.log(`Image data length: ${imageBase64.length} characters`);
-      
       // Remove data URL prefix if present
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-      this.logger.log(`Base64 data length after prefix removal: ${base64Data.length}`);
       
       // Validate base64 data
       if (!base64Data || base64Data.length < 100) {
         throw new BadRequestException('Invalid image data');
       }
       
-      try {
-        // Upload to S3 first for permanent storage
-        this.logger.log('Attempting S3 upload...');
-        const imageBuffer = Buffer.from(base64Data, 'base64');
-        this.logger.log(`Image buffer size: ${imageBuffer.length} bytes`);
+      this.logger.log(`Image data length: ${base64Data.length} characters`);
+      
+      // Upload to S3 first for permanent storage
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      const uploadResult = await this.uploadsService.uploadImage(
+        imageBuffer,
+        'image/jpeg',
+        'water-chemistry',
+        { sessionId, analysisType: 'test-strip' }
+      );
+      
+      this.logger.log(`S3 upload successful: ${uploadResult.url}`);
+
+      // Try each AI provider in order
+      let lastError: Error | null = null;
+      
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
         
-        const uploadResult = await this.uploadsService.uploadImage(
-          imageBuffer,
-          'image/jpeg',
-          'water-chemistry',
-          { sessionId, analysisType: 'test-strip' }
-        );
-        this.logger.log('S3 upload successful:', uploadResult.url);
-        
-        // Analyze with Gemini Vision
-        this.logger.log('Calling Gemini Vision API...');
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-        
-        const prompt = `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings.
-        
-        Return the values in this exact JSON format:
-        {
-          "readings": {
-            "freeChlorine": number or null,
-            "totalChlorine": number or null,
-            "ph": number or null,
-            "alkalinity": number or null,
-            "cyanuricAcid": number or null,
-            "calcium": number or null,
-            "copper": number or null,
-            "iron": number or null,
-            "phosphates": number or null,
-            "salt": number or null,
-            "tds": number or null
-          },
-          "confidence": number between 0-1
+        try {
+          this.logger.log(`Attempting analysis with ${provider.name}...`);
+          const result = await provider.analyze(
+            uploadResult.url,
+            this.getTestStripPrompt()
+          );
+          
+          // If successful, return the result
+          return {
+            success: true,
+            data: {
+              ...result,
+              imageUrl: uploadResult.url,
+              thumbnailUrl: uploadResult.thumbnailUrl,
+              analyzedBy: provider.name,
+              sessionId
+            }
+          };
+        } catch (error) {
+          this.logger.error(`${provider.name} analysis failed:`, error);
+          lastError = error;
+          
+          // Mark provider as temporarily unavailable if it's a rate limit or auth error
+          if (error.status === 403 || error.status === 429) {
+            provider.available = false;
+            setTimeout(() => {
+              provider.available = true;
+              this.logger.log(`${provider.name} re-enabled after cooldown`);
+            }, 60000); // Re-enable after 1 minute
+          }
         }
-        
-        If you cannot detect a value, use null. Only return the JSON, no other text.`;
-        
-        const result = await model.generateContent([
-          prompt,
+      }
+      
+      // All providers failed
+      throw new Error(`All AI providers failed. Last error: ${lastError?.message}`);
+      
+    } catch (error) {
+      this.logger.error('Test strip analysis failed:', error);
+      throw new Error(`Failed to analyze test strip: ${error.message}`);
+    }
+  }
+
+  private async analyzeWithGemini(imageUrl: string, prompt: string): Promise<any> {
+    if (!this.genAI) {
+      throw new Error('Gemini AI not initialized');
+    }
+
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    // Fetch image from URL
+    const imageResponse = await fetch(imageUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt },
           {
             inlineData: {
               mimeType: 'image/jpeg',
-              data: base64Data,
-            },
-          },
-        ]);
-        
-        this.logger.log('Gemini API call successful');
-        const response = await result.response;
-        const text = response.text();
-        this.logger.log('Gemini response received, length:', text.length);
-        
-        // Parse the JSON response
-        let analysisData;
-        try {
-          // Extract JSON from the response (in case there's extra text)
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            this.logger.error('No JSON found in Gemini response:', text);
-            throw new Error('No JSON found in response');
+              data: base64Image
+            }
           }
-          analysisData = JSON.parse(jsonMatch[0]);
-          this.logger.log('Successfully parsed AI response');
-        } catch (parseError) {
-          this.logger.error('Failed to parse Gemini response:', parseError);
-          this.logger.error('Raw response:', text);
-          throw new Error('Failed to parse AI response');
-        }
-        
-        // Return standardized response
-        const finalResponse = {
-          success: true,
-          data: {
-            readings: analysisData.readings || {},
-            imageUrl: uploadResult.url,
-            analysis: {
-              timestamp: new Date().toISOString(),
-              aiModel: 'gemini-1.5-flash',
-              confidence: analysisData.confidence || 0.8,
-            },
+        ]
+      }]
+    });
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    // Parse the structured response
+    return this.parseAIResponse(text);
+  }
+
+  private async analyzeWithClaude(imageUrl: string, prompt: string): Promise<any> {
+    if (!this.anthropic) {
+      throw new Error('Claude AI not initialized');
+    }
+
+    // Fetch image from URL
+    const imageResponse = await fetch(imageUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    
+    const response = await this.anthropic.messages.create({
+      model: 'claude-3-opus-20240229',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: base64Image
+            }
           },
-        };
-        
-        this.logger.log('Returning successful response');
-        return finalResponse;
-        
-      } catch (innerError) {
-        this.logger.error('Inner error during analysis:', innerError.message);
-        this.logger.error('Inner error stack:', innerError.stack);
-        throw innerError;
+          {
+            type: 'text',
+            text: prompt
+          }
+        ]
+      }]
+    });
+    
+    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    return this.parseAIResponse(text);
+  }
+
+  private getTestStripPrompt(): string {
+    return `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings.
+    
+    Return ONLY a JSON object with the following structure, no additional text:
+    {
+      "readings": {
+        "freeChlorine": <number or null>,
+        "totalChlorine": <number or null>,
+        "ph": <number or null>,
+        "alkalinity": <number or null>,
+        "cyanuricAcid": <number or null>,
+        "totalHardness": <number or null>
+      },
+      "confidence": <number between 0 and 1>,
+      "notes": "<any relevant observations>"
+    }
+    
+    If you cannot read a value clearly, use null. Be precise with the readings based on the color matching.`;
+  }
+
+  private parseAIResponse(text: string): any {
+    try {
+      // Extract JSON from the response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in AI response');
       }
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Validate the response structure
+      if (!parsed.readings || typeof parsed.readings !== 'object') {
+        throw new Error('Invalid response structure from AI');
+      }
+      
+      return parsed;
     } catch (error) {
-      this.logger.error('Test strip analysis failed:', error);
-      
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      
-      // Log the full error for debugging
-      if (error.response) {
-        this.logger.error('API Error Response:', error.response);
-      }
-      
-      throw new Error(
-        `Failed to analyze test strip: ${error.message || 'Unknown error'}`
-      );
+      this.logger.error('Failed to parse AI response:', error);
+      throw new Error(`Failed to parse AI response: ${error.message}`);
     }
   }
 
@@ -209,61 +299,58 @@ export class AiService {
         { sessionId, analysisType: 'satellite', address: formattedAddress }
       );
 
-      // Analyze with Gemini Vision
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use provider fallback for analysis
+      let lastError: Error | null = null;
       
-      const prompt = `Analyze this satellite image of a residential property and identify pool-related features.
-      
-      Look for and describe:
-      1. Pool presence and approximate dimensions
-      2. Pool shape (rectangular, kidney, freeform, etc.)
-      3. Pool color/condition (clear blue, green/algae, covered, empty)
-      4. Deck material and condition
-      5. Screen enclosure presence
-      6. Equipment pad location
-      7. Any water features (spa, waterfall, etc.)
-      8. Surrounding landscape that might affect pool
-      
-      Provide a detailed JSON response with your findings.`;
-
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { data: imageBuffer.toString('base64'), mimeType: 'image/jpeg' } }
-      ]);
-
-      const response = await result.response;
-      const analysisText = response.text();
-      
-      // Parse AI response
-      let poolFeatures = {};
-      try {
-        const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          poolFeatures = JSON.parse(jsonMatch[0]);
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
+        
+        try {
+          const result = await provider.analyze(
+            uploadResult.url,
+            this.getPoolSatellitePrompt()
+          );
+          
+          return {
+            success: true,
+            location: {
+              lat: location.lat,
+              lng: location.lng,
+              address: formattedAddress,
+            },
+            satelliteImageUrl: uploadResult.url,
+            analysis: {
+              features: result,
+              timestamp: new Date().toISOString(),
+              aiModel: provider.name,
+            }
+          };
+        } catch (error) {
+          lastError = error;
         }
-      } catch (e) {
-        // If not JSON, structure the text response
-        poolFeatures = { description: analysisText };
       }
-
-      return {
-        success: true,
-        location: {
-          lat: location.lat,
-          lng: location.lng,
-          address: formattedAddress,
-        },
-        satelliteImageUrl: uploadResult.url,
-        analysis: {
-          features: poolFeatures,
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-        }
-      };
+      
+      throw new Error(`Failed to analyze satellite image: ${lastError?.message}`);
     } catch (error) {
       this.logger.error('Pool satellite analysis failed:', error);
       throw new BadRequestException('Failed to analyze pool location');
     }
+  }
+
+  private getPoolSatellitePrompt(): string {
+    return `Analyze this satellite image of a residential property and identify pool-related features.
+    
+    Look for and describe:
+    1. Pool presence and approximate dimensions
+    2. Pool shape (rectangular, kidney, freeform, etc.)
+    3. Pool color/condition (clear blue, green/algae, covered, empty)
+    4. Deck material and condition
+    5. Screen enclosure presence
+    6. Equipment pad location
+    7. Any water features (spa, waterfall, etc.)
+    8. Surrounding landscape that might affect pool
+    
+    Provide a detailed JSON response with your findings.`;
   }
 
   async analyzeEquipment(imageBase64: string, sessionId: string, equipmentType?: string): Promise<any> {
@@ -282,71 +369,69 @@ export class AiService {
         { sessionId, analysisType: 'equipment', equipmentType: equipmentType || 'unknown' }
       );
       
-      // Analyze with Gemini Vision
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use provider fallback for analysis
+      let lastError: Error | null = null;
       
-      const prompt = `You are a pool equipment expert. Analyze this pool equipment image.
-      ${equipmentType ? `The user indicates this is a ${equipmentType}.` : ''}
-      
-      Identify and provide detailed information about:
-      1. Equipment type (pump, filter, heater, chlorinator, automation, etc.)
-      2. Brand/manufacturer (look for logos, labels)
-      3. Model number (check data plates, stickers)
-      4. Estimated age (based on condition, style)
-      5. Condition assessment (excellent, good, fair, poor)
-      6. Visible issues:
-         - Rust or corrosion
-         - Leaks or moisture
-         - Cracks or damage
-         - Missing parts
-         - Electrical issues
-      7. Maintenance recommendations
-      8. Estimated replacement cost range
-      
-      Return a detailed JSON object with all findings.`;
-
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
-      ]);
-
-      const response = await result.response;
-      const text = response.text();
-      
-      // Parse response
-      let analysis = {};
-      try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysis = JSON.parse(jsonMatch[0]);
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
+        
+        try {
+          const result = await provider.analyze(
+            uploadResult.url,
+            this.getEquipmentPrompt(equipmentType)
+          );
+          
+          return {
+            success: true,
+            imageUrl: uploadResult.url,
+            thumbnailUrl: uploadResult.thumbnailUrl,
+            analysis: {
+              ...result,
+              timestamp: new Date().toISOString(),
+              aiModel: provider.name,
+            }
+          };
+        } catch (error) {
+          lastError = error;
         }
-      } catch (e) {
-        analysis = { 
-          description: text,
-          type: equipmentType || 'unknown',
-          condition: 'requires inspection'
-        };
       }
-
-      return {
-        success: true,
-        imageUrl: uploadResult.url,
-        thumbnailUrl: uploadResult.thumbnailUrl,
-        analysis: {
-          ...analysis,
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-        }
-      };
+      
+      throw new Error(`Failed to analyze equipment: ${lastError?.message}`);
     } catch (error) {
       this.logger.error('Equipment analysis failed:', error);
       throw new BadRequestException('Failed to analyze equipment');
     }
   }
 
+  private getEquipmentPrompt(equipmentType?: string): string {
+    return `You are a pool equipment expert. Analyze this pool equipment image.
+    ${equipmentType ? `The user indicates this is a ${equipmentType}.` : ''}
+    
+    Identify and provide detailed information about:
+    1. Equipment type (pump, filter, heater, chlorinator, automation, etc.)
+    2. Brand/manufacturer (look for logos, labels)
+    3. Model number (check data plates, stickers)
+    4. Estimated age (based on condition, style)
+    5. Condition assessment (excellent, good, fair, poor)
+    6. Visible issues:
+       - Rust or corrosion
+       - Leaks or moisture
+       - Cracks or damage
+       - Missing parts
+       - Electrical issues
+    7. Maintenance recommendations
+    8. Estimated replacement cost range
+    
+    Return a detailed JSON object with all findings.`;
+  }
+
   async generateWaterChemistryInsights(readings: any, sessionId: string): Promise<any> {
     try {
       this.logger.log(`Generating water chemistry insights for session: ${sessionId}`);
+      
+      if (!this.anthropic) {
+        throw new Error('Claude AI not available for insights generation');
+      }
       
       const message = await this.anthropic.messages.create({
         model: 'claude-3-sonnet-20240229',
@@ -455,75 +540,74 @@ Format your response as a JSON object with these sections:
         { sessionId, analysisType: 'pool-surface' }
       );
       
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use provider fallback for analysis
+      let lastError: Error | null = null;
       
-      const prompt = `Analyze this pool surface image as an expert pool inspector.
-      
-      Identify:
-      1. Surface Material Type:
-         - Plaster (white, colored, or aggregate)
-         - Pebble (exposed aggregate finish)
-         - Tile (ceramic or glass)
-         - Vinyl liner
-         - Fiberglass
-         - Other/Unknown
-      
-      2. Surface Condition:
-         - Excellent: Like new, no visible wear
-         - Good: Minor wear, no damage
-         - Fair: Moderate wear, minor damage
-         - Poor: Significant wear, needs resurfacing
-      
-      3. Visible Issues:
-         - Stains (type and severity)
-         - Cracks or chips
-         - Rough patches
-         - Delamination
-         - Discoloration
-         - Scale buildup
-      
-      4. Maintenance Recommendations
-      
-      Return a detailed JSON analysis.`;
-
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
-      ]);
-
-      const response = await result.response;
-      const text = response.text();
-      
-      let analysis = {};
-      try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysis = JSON.parse(jsonMatch[0]);
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
+        
+        try {
+          const result = await provider.analyze(
+            uploadResult.url,
+            this.getPoolSurfacePrompt()
+          );
+          
+          return {
+            success: true,
+            imageUrl: uploadResult.url,
+            analysis: {
+              ...result,
+              timestamp: new Date().toISOString(),
+              aiModel: provider.name,
+            }
+          };
+        } catch (error) {
+          lastError = error;
         }
-      } catch (e) {
-        analysis = { description: text };
       }
-
-      return {
-        success: true,
-        imageUrl: uploadResult.url,
-        analysis: {
-          ...analysis,
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-        }
-      };
+      
+      throw new Error(`Failed to analyze pool surface: ${lastError?.message}`);
     } catch (error) {
       this.logger.error('Pool surface analysis failed:', error);
       throw new BadRequestException('Failed to analyze pool surface');
     }
   }
 
+  private getPoolSurfacePrompt(): string {
+    return `Analyze this pool surface image as an expert pool inspector.
+    
+    Identify:
+    1. Surface Material Type:
+       - Plaster (white, colored, or aggregate)
+       - Pebble (exposed aggregate finish)
+       - Tile (ceramic or glass)
+       - Vinyl liner
+       - Fiberglass
+       - Other/Unknown
+    
+    2. Surface Condition:
+       - Excellent: Like new, no visible wear
+       - Good: Minor wear, no damage
+       - Fair: Moderate wear, minor damage
+       - Poor: Significant wear, needs resurfacing
+    
+    3. Visible Issues:
+       - Stains (type and severity)
+       - Cracks or chips
+       - Rough patches
+       - Delamination
+       - Discoloration
+       - Scale buildup
+    
+    4. Maintenance Recommendations
+    
+    Return a detailed JSON analysis.`;
+  }
+
   async analyzePoolEnvironment(images: string[], sessionId: string): Promise<any> {
     try {
       this.logger.log(`Analyzing pool environment for session: ${sessionId}`);
       
-      const analysisResults = [];
       const uploadedImages = [];
       
       // Process each environment image
@@ -541,80 +625,77 @@ Format your response as a JSON object with these sections:
         uploadedImages.push(uploadResult.url);
       }
       
-      // Analyze all images together for comprehensive environment assessment
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Analyze with available providers
+      let lastError: Error | null = null;
       
-      const prompt = `Analyze these pool environment images as a pool maintenance expert.
-      
-      Identify and assess:
-      
-      1. Nearby Vegetation:
-         - Trees (type, distance from pool, overhang)
-         - Bushes/shrubs
-         - Grass areas
-         - Risk of debris falling into pool
-      
-      2. Ground Conditions:
-         - Grass vs dirt/mulch areas
-         - Drainage patterns
-         - Erosion risks
-         - Sprinkler system presence
-      
-      3. Environmental Factors:
-         - Sun exposure (full sun, partial shade, heavy shade)
-         - Wind exposure
-         - Privacy/screening
-         - Neighboring structures
-      
-      4. Maintenance Challenges:
-         - Leaf/debris load expectations
-         - Chemical balance impacts
-         - Algae growth risk factors
-         - Equipment placement issues
-      
-      5. Recommendations:
-         - Trimming needs
-         - Drainage improvements
-         - Chemical adjustment frequency
-         - Equipment protection
-      
-      Provide a comprehensive JSON analysis of the pool environment.`;
-
-      const imagesForAnalysis = images.slice(0, 3).map((img, idx) => ({
-        inlineData: { 
-          data: img.replace(/^data:image\/\w+;base64,/, ''), 
-          mimeType: 'image/jpeg' 
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
+        
+        try {
+          // For multiple images, we'll analyze the first one as representative
+          const result = await provider.analyze(
+            uploadedImages[0],
+            this.getEnvironmentPrompt()
+          );
+          
+          return {
+            success: true,
+            imageUrls: uploadedImages,
+            analysis: {
+              ...result,
+              imagesAnalyzed: images.length,
+              timestamp: new Date().toISOString(),
+              aiModel: provider.name,
+            }
+          };
+        } catch (error) {
+          lastError = error;
         }
-      }));
-
-      const result = await model.generateContent([prompt, ...imagesForAnalysis]);
-      const response = await result.response;
-      const text = response.text();
-      
-      let analysis = {};
-      try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysis = JSON.parse(jsonMatch[0]);
-        }
-      } catch (e) {
-        analysis = { description: text };
       }
-
-      return {
-        success: true,
-        imageUrls: uploadedImages,
-        analysis: {
-          ...analysis,
-          imagesAnalyzed: images.length,
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-        }
-      };
+      
+      throw new Error(`Failed to analyze environment: ${lastError?.message}`);
     } catch (error) {
       this.logger.error('Environment analysis failed:', error);
       throw new BadRequestException('Failed to analyze pool environment');
     }
+  }
+
+  private getEnvironmentPrompt(): string {
+    return `Analyze these pool environment images as a pool maintenance expert.
+    
+    Identify and assess:
+    
+    1. Nearby Vegetation:
+       - Trees (type, distance from pool, overhang)
+       - Bushes/shrubs
+       - Grass areas
+       - Risk of debris falling into pool
+    
+    2. Ground Conditions:
+       - Grass vs dirt/mulch areas
+       - Drainage patterns
+       - Erosion risks
+       - Sprinkler system presence
+    
+    3. Environmental Factors:
+       - Sun exposure (full sun, partial shade, heavy shade)
+       - Wind exposure
+       - Privacy/screening
+       - Neighboring structures
+    
+    4. Maintenance Challenges:
+       - Leaf/debris load expectations
+       - Chemical balance impacts
+       - Algae growth risk factors
+       - Equipment placement issues
+    
+    5. Recommendations:
+       - Trimming needs
+       - Drainage improvements
+       - Chemical adjustment frequency
+       - Equipment protection
+    
+    Provide a comprehensive JSON analysis of the pool environment.`;
   }
 
   async analyzeSkimmers(images: string[], sessionId: string): Promise<any> {
@@ -638,78 +719,72 @@ Format your response as a JSON object with these sections:
         uploadedImages.push(uploadResult.url);
       }
       
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use provider fallback for analysis
+      let lastError: Error | null = null;
       
-      const prompt = `Analyze these pool skimmer images as a pool equipment expert.
-      
-      Count and assess:
-      
-      1. Skimmer Count:
-         - How many unique skimmers are shown?
-         - Are some images of the same skimmer?
-      
-      2. For Each Skimmer:
-         - Basket condition (clean, dirty, damaged, missing)
-         - Lid/cover condition (intact, cracked, missing)
-         - Weir door/flap condition
-         - Overall skimmer housing condition
-         - Any visible cracks or damage
-      
-      3. Maintenance Issues:
-         - Debris accumulation
-         - Need for basket replacement
-         - Lid replacement needs
-         - Cleaning requirements
-      
-      4. Type Identification:
-         - In-ground skimmer
-         - Above-ground skimmer
-         - Brand if visible
-      
-      Return a JSON object with:
-      - detectedSkimmerCount: number
-      - skimmers: array of individual skimmer assessments
-      - overallCondition: excellent/good/fair/poor
-      - recommendations: array of maintenance items`;
-
-      const imagesForAnalysis = images.slice(0, 6).map((img) => ({
-        inlineData: { 
-          data: img.replace(/^data:image\/\w+;base64,/, ''), 
-          mimeType: 'image/jpeg' 
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
+        
+        try {
+          const result = await provider.analyze(
+            uploadedImages[0],
+            this.getSkimmerPrompt()
+          );
+          
+          return {
+            success: true,
+            imageUrls: uploadedImages,
+            analysis: {
+              ...result,
+              imagesAnalyzed: images.length,
+              timestamp: new Date().toISOString(),
+              aiModel: provider.name,
+            }
+          };
+        } catch (error) {
+          lastError = error;
         }
-      }));
-
-      const result = await model.generateContent([prompt, ...imagesForAnalysis]);
-      const response = await result.response;
-      const text = response.text();
-      
-      let analysis = {};
-      try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysis = JSON.parse(jsonMatch[0]);
-        }
-      } catch (e) {
-        analysis = { 
-          detectedSkimmerCount: 1,
-          description: text 
-        };
       }
-
-      return {
-        success: true,
-        imageUrls: uploadedImages,
-        analysis: {
-          ...analysis,
-          imagesAnalyzed: images.length,
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-        }
-      };
+      
+      throw new Error(`Failed to analyze skimmers: ${lastError?.message}`);
     } catch (error) {
       this.logger.error('Skimmer analysis failed:', error);
       throw new BadRequestException('Failed to analyze skimmers');
     }
+  }
+
+  private getSkimmerPrompt(): string {
+    return `Analyze these pool skimmer images as a pool equipment expert.
+    
+    Count and assess:
+    
+    1. Skimmer Count:
+       - How many unique skimmers are shown?
+       - Are some images of the same skimmer?
+    
+    2. For Each Skimmer:
+       - Basket condition (clean, dirty, damaged, missing)
+       - Lid/cover condition (intact, cracked, missing)
+       - Weir door/flap condition
+       - Overall skimmer housing condition
+       - Any visible cracks or damage
+    
+    3. Maintenance Issues:
+       - Debris accumulation
+       - Need for basket replacement
+       - Lid replacement needs
+       - Cleaning requirements
+    
+    4. Type Identification:
+       - In-ground skimmer
+       - Above-ground skimmer
+       - Brand if visible
+    
+    Return a JSON object with:
+    - detectedSkimmerCount: number
+    - skimmers: array of individual skimmer assessments
+    - overallCondition: excellent/good/fair/poor
+    - recommendations: array of maintenance items`;
   }
 
   async analyzeDeck(images: string[], sessionId: string): Promise<any> {
@@ -733,77 +808,74 @@ Format your response as a JSON object with these sections:
         uploadedImages.push(uploadResult.url);
       }
       
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use provider fallback for analysis
+      let lastError: Error | null = null;
       
-      const prompt = `Analyze these pool deck images as a hardscape expert.
-      
-      Identify:
-      
-      1. Deck Material:
-         - Pavers (concrete, brick, stone)
-         - Stamped concrete
-         - Regular concrete
-         - Natural stone
-         - Tile
-         - Wood decking
-         - Composite decking
-      
-      2. Deck Condition:
-         - Surface cleanliness (clean, dirty, stained)
-         - Structural integrity
-         - Cracks or damage
-         - Settlement or unevenness
-         - Slip hazards
-      
-      3. Maintenance Issues:
-         - Pressure washing needs
-         - Sealing requirements
-         - Repair priorities
-         - Safety concerns
-      
-      4. Features:
-         - Coping condition
-         - Expansion joints
-         - Drainage
-         - Trip hazards
-      
-      Return a comprehensive JSON analysis with material type, condition assessment, and recommendations.`;
-
-      const imagesForAnalysis = images.slice(0, 4).map((img) => ({
-        inlineData: { 
-          data: img.replace(/^data:image\/\w+;base64,/, ''), 
-          mimeType: 'image/jpeg' 
+      for (const provider of this.aiProviders) {
+        if (!provider.available) continue;
+        
+        try {
+          const result = await provider.analyze(
+            uploadedImages[0],
+            this.getDeckPrompt()
+          );
+          
+          return {
+            success: true,
+            imageUrls: uploadedImages,
+            analysis: {
+              ...result,
+              imagesAnalyzed: images.length,
+              timestamp: new Date().toISOString(),
+              aiModel: provider.name,
+            }
+          };
+        } catch (error) {
+          lastError = error;
         }
-      }));
-
-      const result = await model.generateContent([prompt, ...imagesForAnalysis]);
-      const response = await result.response;
-      const text = response.text();
-      
-      let analysis = {};
-      try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysis = JSON.parse(jsonMatch[0]);
-        }
-      } catch (e) {
-        analysis = { description: text };
       }
-
-      return {
-        success: true,
-        imageUrls: uploadedImages,
-        analysis: {
-          ...analysis,
-          imagesAnalyzed: images.length,
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-        }
-      };
+      
+      throw new Error(`Failed to analyze deck: ${lastError?.message}`);
     } catch (error) {
       this.logger.error('Deck analysis failed:', error);
       throw new BadRequestException('Failed to analyze deck');
     }
+  }
+
+  private getDeckPrompt(): string {
+    return `Analyze these pool deck images as a hardscape expert.
+    
+    Identify:
+    
+    1. Deck Material:
+       - Pavers (concrete, brick, stone)
+       - Stamped concrete
+       - Regular concrete
+       - Natural stone
+       - Tile
+       - Wood decking
+       - Composite decking
+    
+    2. Deck Condition:
+       - Surface cleanliness (clean, dirty, stained)
+       - Structural integrity
+       - Cracks or damage
+       - Settlement or unevenness
+       - Slip hazards
+    
+    3. Maintenance Issues:
+       - Pressure washing needs
+       - Sealing requirements
+       - Repair priorities
+       - Safety concerns
+    
+    4. Features:
+       - Coping condition
+       - Expansion joints
+       - Drainage
+       - Trip hazards
+    
+    Return a comprehensive JSON analysis with material type, condition assessment, and recommendations.`;
   }
 
   // Helper methods
