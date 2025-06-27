@@ -20,6 +20,12 @@ export class AiController {
 
   @Post('analyze-test-strip')
   async analyzeTestStrip(@Body() body: { image: string; sessionId?: string }) {
+    // IMMEDIATE LOGGING
+    console.log('🚨 [AI Controller] Request received at:', new Date().toISOString());
+    console.log('🚨 [AI Controller] Body keys:', Object.keys(body));
+    console.log('🚨 [AI Controller] Image length:', body.image?.length || 0);
+    console.log('🚨 [AI Controller] SessionId:', body.sessionId);
+    
     try {
       this.logger.log('Received test strip analysis request');
       

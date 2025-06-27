@@ -16,9 +16,17 @@ export class AiService {
     private configService: ConfigService,
     private uploadsService: UploadsService
   ) {
+    console.log('🚨 [AI Service] Constructor called');
+    
     const geminiKey = this.configService.get<string>('GEMINI_API_KEY');
     const anthropicKey = this.configService.get<string>('ANTHROPIC_API_KEY');
     const googleMapsKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY');
+
+    console.log('🚨 [AI Service] Keys loaded:', {
+      gemini: !!geminiKey,
+      anthropic: !!anthropicKey,
+      googleMaps: !!googleMapsKey
+    });
 
     if (!geminiKey || !anthropicKey || !googleMapsKey) {
       this.logger.error('Missing AI API keys in environment variables');
