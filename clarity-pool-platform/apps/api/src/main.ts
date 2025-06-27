@@ -21,6 +21,14 @@ async function bootstrap() {
     console.log(`🚨🚨🚨 [INCOMING REQUEST] ${req.method} ${req.url}`);
     console.log(`🚨🚨🚨 [REQUEST PATH] ${req.path}`);
     console.log(`🚨🚨🚨 [REQUEST BODY EXISTS] ${!!req.body}`);
+    console.log(`🚨🚨🚨 [CONTENT-TYPE] ${req.headers['content-type']}`);
+    console.log(`🚨🚨🚨 [CONTENT-LENGTH] ${req.headers['content-length']}`);
+    
+    // If POST request, try to log body
+    if (req.method === 'POST' && req.body) {
+      console.log(`🚨🚨🚨 [BODY KEYS] ${Object.keys(req.body)}`);
+    }
+    
     next();
   });
   
