@@ -34,8 +34,22 @@ export class AiService {
     try {
       this.logger.log(`Analyzing test strip for session: ${sessionId}`);
       
+      // Validate inputs
+      if (!imageBase64) {
+        throw new BadRequestException('Image data is required');
+      }
+      
+      if (!sessionId) {
+        throw new BadRequestException('Session ID is required');
+      }
+      
       // Remove data URL prefix if present
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      
+      // Validate base64 data
+      if (!base64Data || base64Data.length < 100) {
+        throw new BadRequestException('Invalid image data');
+      }
       
       // Upload to S3 first for permanent storage
       const imageBuffer = Buffer.from(base64Data, 'base64');
@@ -49,62 +63,84 @@ export class AiService {
       // Analyze with Gemini Vision
       const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       
-      const prompt = `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings. 
+      const prompt = `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings.
       
-      IMPORTANT: 
-      - Look at the color pads on the test strip
-      - Match colors to the reference chart if visible
-      - Provide realistic values within normal pool ranges
-      - If you cannot determine a value with confidence, use null
-      
-      Return ONLY a JSON object with these exact fields:
+      Return the values in this exact JSON format:
       {
-        "freeChlorine": number (0-10 ppm) or null,
-        "totalChlorine": number (0-10 ppm) or null,
-        "ph": number (6.8-8.2) or null,
-        "alkalinity": number (80-120 ppm) or null,
-        "cyanuricAcid": number (30-50 ppm) or null,
-        "calcium": number (200-400 ppm) or null,
-        "copper": number (0-0.3 ppm) or null,
-        "iron": number (0-0.3 ppm) or null,
-        "phosphates": number (0-1000 ppb) or null,
-        "salt": number (2700-3400 ppm) or null,
-        "tds": number (0-2000 ppm) or null
-      }`;
-
+        "readings": {
+          "freeChlorine": number or null,
+          "totalChlorine": number or null,
+          "ph": number or null,
+          "alkalinity": number or null,
+          "cyanuricAcid": number or null,
+          "calcium": number or null,
+          "copper": number or null,
+          "iron": number or null,
+          "phosphates": number or null,
+          "salt": number or null,
+          "tds": number or null
+        },
+        "confidence": number between 0-1
+      }
+      
+      If you cannot detect a value, use null. Only return the JSON, no other text.`;
+      
       const result = await model.generateContent([
         prompt,
-        { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Data,
+          },
+        },
       ]);
-
+      
       const response = await result.response;
       const text = response.text();
       
-      // Extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Failed to extract JSON from AI response');
+      // Parse the JSON response
+      let analysisData;
+      try {
+        // Extract JSON from the response (in case there's extra text)
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('No JSON found in response');
+        }
+        analysisData = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        this.logger.error('Failed to parse Gemini response:', parseError);
+        this.logger.error('Raw response:', text);
+        throw new Error('Failed to parse AI response');
       }
-
-      const readings = JSON.parse(jsonMatch[0]);
       
-      // Validate readings are within reasonable ranges
-      const validated = this.validateWaterChemistry(readings);
-      
+      // Return standardized response
       return {
         success: true,
-        readings: validated,
-        imageUrl: uploadResult.url,
-        thumbnailUrl: uploadResult.thumbnailUrl,
-        analysis: {
-          timestamp: new Date().toISOString(),
-          aiModel: 'gemini-1.5-flash',
-          confidence: this.calculateConfidence(validated),
-        }
+        data: {
+          readings: analysisData.readings || {},
+          imageUrl: uploadResult.url,
+          analysis: {
+            timestamp: new Date().toISOString(),
+            aiModel: 'gemini-1.5-flash',
+            confidence: analysisData.confidence || 0.8,
+          },
+        },
       };
     } catch (error) {
       this.logger.error('Test strip analysis failed:', error);
-      throw new BadRequestException('Failed to analyze test strip');
+      
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Log the full error for debugging
+      if (error.response) {
+        this.logger.error('API Error Response:', error.response);
+      }
+      
+      throw new Error(
+        `Failed to analyze test strip: ${error.message || 'Unknown error'}`
+      );
     }
   }
 

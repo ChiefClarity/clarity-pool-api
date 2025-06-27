@@ -3,7 +3,10 @@ import {
   Post, 
   Body, 
   UseGuards,
-  Logger
+  Logger,
+  BadRequestException,
+  HttpException,
+  HttpStatus
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiService } from './ai.service';
@@ -16,9 +19,37 @@ export class AiController {
   constructor(private readonly aiService: AiService) {}
 
   @Post('analyze-test-strip')
-  async analyzeTestStrip(@Body() body: { image: string; sessionId: string }) {
-    this.logger.log('Received test strip analysis request');
-    return this.aiService.analyzeTestStrip(body.image, body.sessionId);
+  async analyzeTestStrip(@Body() body: { image: string; sessionId?: string }) {
+    try {
+      this.logger.log('Received test strip analysis request');
+      
+      // Validate request body
+      if (!body.image) {
+        throw new BadRequestException('Image is required');
+      }
+      
+      // Generate sessionId if not provided
+      const sessionId = body.sessionId || `session-${Date.now()}`;
+      
+      const result = await this.aiService.analyzeTestStrip(body.image, sessionId);
+      return result;
+    } catch (error) {
+      this.logger.error('Test strip analysis error:', error);
+      
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Return a proper error response
+      throw new HttpException(
+        {
+          statusCode: 500,
+          message: error.message || 'Failed to analyze test strip',
+          error: 'Internal Server Error',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Post('analyze-pool-satellite')
