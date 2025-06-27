@@ -35,17 +35,25 @@ export class AiController {
       return result;
     } catch (error) {
       this.logger.error('Test strip analysis error:', error);
+      this.logger.error('Error stack:', error.stack);
       
       if (error instanceof BadRequestException) {
         throw error;
       }
       
-      // Return a proper error response
+      // For debugging, return the actual error details
       throw new HttpException(
         {
           statusCode: 500,
           message: error.message || 'Failed to analyze test strip',
           error: 'Internal Server Error',
+          // Add detailed error info for debugging
+          details: {
+            actualError: error.message,
+            type: error.constructor.name,
+            // Only in development
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          }
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );

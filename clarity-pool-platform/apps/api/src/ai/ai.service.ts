@@ -43,89 +43,112 @@ export class AiService {
         throw new BadRequestException('Session ID is required');
       }
       
+      // Log the image data size
+      this.logger.log(`Image data length: ${imageBase64.length} characters`);
+      
       // Remove data URL prefix if present
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      this.logger.log(`Base64 data length after prefix removal: ${base64Data.length}`);
       
       // Validate base64 data
       if (!base64Data || base64Data.length < 100) {
         throw new BadRequestException('Invalid image data');
       }
       
-      // Upload to S3 first for permanent storage
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      const uploadResult = await this.uploadsService.uploadImage(
-        imageBuffer,
-        'image/jpeg',
-        'water-chemistry',
-        { sessionId, analysisType: 'test-strip' }
-      );
-      
-      // Analyze with Gemini Vision
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      
-      const prompt = `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings.
-      
-      Return the values in this exact JSON format:
-      {
-        "readings": {
-          "freeChlorine": number or null,
-          "totalChlorine": number or null,
-          "ph": number or null,
-          "alkalinity": number or null,
-          "cyanuricAcid": number or null,
-          "calcium": number or null,
-          "copper": number or null,
-          "iron": number or null,
-          "phosphates": number or null,
-          "salt": number or null,
-          "tds": number or null
-        },
-        "confidence": number between 0-1
-      }
-      
-      If you cannot detect a value, use null. Only return the JSON, no other text.`;
-      
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: base64Data,
-          },
-        },
-      ]);
-      
-      const response = await result.response;
-      const text = response.text();
-      
-      // Parse the JSON response
-      let analysisData;
       try {
-        // Extract JSON from the response (in case there's extra text)
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          throw new Error('No JSON found in response');
-        }
-        analysisData = JSON.parse(jsonMatch[0]);
-      } catch (parseError) {
-        this.logger.error('Failed to parse Gemini response:', parseError);
-        this.logger.error('Raw response:', text);
-        throw new Error('Failed to parse AI response');
-      }
-      
-      // Return standardized response
-      return {
-        success: true,
-        data: {
-          readings: analysisData.readings || {},
-          imageUrl: uploadResult.url,
-          analysis: {
-            timestamp: new Date().toISOString(),
-            aiModel: 'gemini-1.5-flash',
-            confidence: analysisData.confidence || 0.8,
+        // Upload to S3 first for permanent storage
+        this.logger.log('Attempting S3 upload...');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        this.logger.log(`Image buffer size: ${imageBuffer.length} bytes`);
+        
+        const uploadResult = await this.uploadsService.uploadImage(
+          imageBuffer,
+          'image/jpeg',
+          'water-chemistry',
+          { sessionId, analysisType: 'test-strip' }
+        );
+        this.logger.log('S3 upload successful:', uploadResult.url);
+        
+        // Analyze with Gemini Vision
+        this.logger.log('Calling Gemini Vision API...');
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        
+        const prompt = `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings.
+        
+        Return the values in this exact JSON format:
+        {
+          "readings": {
+            "freeChlorine": number or null,
+            "totalChlorine": number or null,
+            "ph": number or null,
+            "alkalinity": number or null,
+            "cyanuricAcid": number or null,
+            "calcium": number or null,
+            "copper": number or null,
+            "iron": number or null,
+            "phosphates": number or null,
+            "salt": number or null,
+            "tds": number or null
           },
-        },
-      };
+          "confidence": number between 0-1
+        }
+        
+        If you cannot detect a value, use null. Only return the JSON, no other text.`;
+        
+        const result = await model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: base64Data,
+            },
+          },
+        ]);
+        
+        this.logger.log('Gemini API call successful');
+        const response = await result.response;
+        const text = response.text();
+        this.logger.log('Gemini response received, length:', text.length);
+        
+        // Parse the JSON response
+        let analysisData;
+        try {
+          // Extract JSON from the response (in case there's extra text)
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            this.logger.error('No JSON found in Gemini response:', text);
+            throw new Error('No JSON found in response');
+          }
+          analysisData = JSON.parse(jsonMatch[0]);
+          this.logger.log('Successfully parsed AI response');
+        } catch (parseError) {
+          this.logger.error('Failed to parse Gemini response:', parseError);
+          this.logger.error('Raw response:', text);
+          throw new Error('Failed to parse AI response');
+        }
+        
+        // Return standardized response
+        const finalResponse = {
+          success: true,
+          data: {
+            readings: analysisData.readings || {},
+            imageUrl: uploadResult.url,
+            analysis: {
+              timestamp: new Date().toISOString(),
+              aiModel: 'gemini-1.5-flash',
+              confidence: analysisData.confidence || 0.8,
+            },
+          },
+        };
+        
+        this.logger.log('Returning successful response');
+        return finalResponse;
+        
+      } catch (innerError) {
+        this.logger.error('Inner error during analysis:', innerError.message);
+        this.logger.error('Inner error stack:', innerError.stack);
+        throw innerError;
+      }
     } catch (error) {
       this.logger.error('Test strip analysis failed:', error);
       
