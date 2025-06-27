@@ -12,10 +12,6 @@ import * as compression from 'compression';
 import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 import { SecurityConfig } from './config/security.config';
 
-// Load .env file only in non-production environments
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config({ path: '../.env', override: true });
-}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
