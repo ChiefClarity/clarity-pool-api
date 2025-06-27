@@ -54,7 +54,7 @@ export class UploadsController {
     );
   }
 
-  @Delete('image/:key(*)')
+  @Delete('image/:key')
   async deleteImage(@Param('key') key: string) {
     await this.uploadsService.deleteImage(key);
     return { success: true, message: 'Image deleted successfully' };
