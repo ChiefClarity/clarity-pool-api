@@ -16,6 +16,14 @@ import { SecurityConfig } from './config/security.config';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // LOG EVERY SINGLE REQUEST
+  app.use((req: any, _res: any, next: any) => {
+    console.log(`🚨🚨🚨 [INCOMING REQUEST] ${req.method} ${req.url}`);
+    console.log(`🚨🚨🚨 [REQUEST PATH] ${req.path}`);
+    console.log(`🚨🚨🚨 [REQUEST BODY EXISTS] ${!!req.body}`);
+    next();
+  });
+  
   // Get security config
   const securityConfig = app.get(SecurityConfig);
   
