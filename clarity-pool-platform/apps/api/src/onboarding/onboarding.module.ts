@@ -7,12 +7,14 @@ import { PoolbrainModule } from '../poolbrain/poolbrain.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MockDataService } from '../common/mock-data.service';
 import { AuthModule } from '../auth/auth.module';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
     PoolbrainModule, 
     PrismaModule, 
     AuthModule,
+    AIModule,
     MulterModule.register({
       dest: './uploads',
     }),

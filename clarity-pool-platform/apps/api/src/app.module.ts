@@ -2,6 +2,8 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER } from '@nestjs/core';
+import { MulterModule } from '@nestjs/platform-express';
+import * as multer from 'multer';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -17,6 +19,7 @@ import { OffersModule } from './offers/offers.module';
 import { HealthModule } from './health/health.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { AIModule } from './ai/ai.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { SentryConfig } from './config/sentry.config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { SecurityMiddleware } from './common/middleware/security.middleware';
@@ -30,6 +33,12 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    MulterModule.register({
+      storage: multer.memoryStorage(),
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+      },
+    }),
     PrismaModule,
     PoolbrainModule,
     BookingModule,
@@ -43,6 +52,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     HealthModule,
     MonitoringModule,
     AIModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [
