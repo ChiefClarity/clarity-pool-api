@@ -34,14 +34,19 @@ export class AiService {
     try {
       const apiKey = this.googleCloudAuth.getApiKey();
       this.logger.log(`Gemini API key exists: ${!!apiKey}`);
+      this.logger.log(`Gemini API key length: ${apiKey ? apiKey.length : 0}`);
       
       if (apiKey) {
         this.logger.log('Attempting to initialize Gemini...');
+        this.logger.log(`API key starts with: ${apiKey.substring(0, 8)}...`);
+        
         this.genAI = new GoogleGenerativeAI(apiKey);
         
         // Test if it actually initialized
         if (this.genAI) {
           this.logger.log('✅ Gemini GoogleGenerativeAI object created');
+          this.logger.log(`GoogleGenerativeAI instance type: ${typeof this.genAI}`);
+          this.logger.log(`GoogleGenerativeAI constructor name: ${this.genAI.constructor.name}`);
           
           this.aiProviders.push({
             name: 'Gemini',
@@ -49,11 +54,13 @@ export class AiService {
             analyze: this.analyzeWithGemini.bind(this)
           });
           this.logger.log('✅ Gemini AI provider added to providers list');
+          this.logger.log(`Providers array after Gemini: ${JSON.stringify(this.aiProviders.map(p => ({ name: p.name, available: p.available })))}`);
         } else {
           this.logger.error('❌ Gemini GoogleGenerativeAI object is null after initialization');
         }
       } else {
         this.logger.warn('No Gemini API key found');
+        this.logger.log(`Auth method being used: ${this.googleCloudAuth.getAuthMethod()}`);
         if (this.googleCloudAuth.isUsingSecureAuth()) {
           this.logger.warn('⚠️  Gemini SDK does not support service account auth yet - using fallback');
         }
@@ -61,11 +68,13 @@ export class AiService {
     } catch (error) {
       this.logger.error('❌ Failed to initialize Gemini:', error);
       this.logger.error('Error details:', error.message);
+      this.logger.error('Error stack:', error.stack);
     }
 
     // Initialize Anthropic as fallback
     try {
       const anthropicKey = this.configService.get<string>('ANTHROPIC_API_KEY');
+      this.logger.log(`Anthropic API key exists: ${!!anthropicKey}`);
       if (anthropicKey) {
         this.anthropic = new Anthropic({ apiKey: anthropicKey });
         this.aiProviders.push({
@@ -74,6 +83,8 @@ export class AiService {
           analyze: this.analyzeWithClaude.bind(this)
         });
         this.logger.log('✅ Claude AI initialized as fallback');
+      } else {
+        this.logger.log('No Anthropic API key found');
       }
     } catch (error) {
       this.logger.error('Failed to initialize Claude', error);
@@ -86,6 +97,7 @@ export class AiService {
     // Log the providers array
     this.logger.log(`AI Providers initialized: ${this.aiProviders.map(p => p.name).join(', ')}`);
     this.logger.log(`Total providers: ${this.aiProviders.length}`);
+    this.logger.log(`Provider details: ${JSON.stringify(this.aiProviders.map(p => ({ name: p.name, available: p.available })))}`);
   }
 
   async analyzeTestStrip(imageBase64: string, sessionId: string): Promise<any> {
@@ -124,11 +136,15 @@ export class AiService {
 
       // Log available providers
       this.logger.log(`Available AI providers: ${this.aiProviders.filter(p => p.available).map(p => p.name).join(', ')}`);
+      this.logger.log(`All providers with status: ${JSON.stringify(this.aiProviders.map(p => ({ name: p.name, available: p.available })))}`);
 
       // Try each AI provider in order
       let lastError: Error | null = null;
       
-      for (const provider of this.aiProviders) {
+      for (let i = 0; i < this.aiProviders.length; i++) {
+        const provider = this.aiProviders[i];
+        this.logger.log(`Provider ${i}: ${provider.name}, available: ${provider.available}`);
+        
         if (!provider.available) {
           this.logger.log(`Skipping ${provider.name} - marked as unavailable`);
           continue;
@@ -136,10 +152,14 @@ export class AiService {
         
         try {
           this.logger.log(`Attempting analysis with ${provider.name}...`);
+          this.logger.log(`Provider analyze function exists: ${!!provider.analyze}`);
+          
           const result = await provider.analyze(
             uploadResult.url,
             this.getTestStripPrompt()
           );
+          
+          this.logger.log(`${provider.name} analysis successful!`);
           
           // If successful, return the result
           return {
@@ -154,11 +174,14 @@ export class AiService {
           };
         } catch (error) {
           this.logger.error(`${provider.name} analysis failed:`, error);
+          this.logger.error(`Error type: ${error.constructor.name}`);
+          this.logger.error(`Error message: ${error.message}`);
           lastError = error;
           
           // Mark provider as temporarily unavailable if it's a rate limit or auth error
           if (error.status === 403 || error.status === 429) {
             provider.available = false;
+            this.logger.warn(`Marking ${provider.name} as temporarily unavailable due to ${error.status} error`);
             setTimeout(() => {
               provider.available = true;
               this.logger.log(`${provider.name} re-enabled after cooldown`);
