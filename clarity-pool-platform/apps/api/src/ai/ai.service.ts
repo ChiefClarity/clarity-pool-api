@@ -22,6 +22,8 @@ export class AiService implements OnModuleInit {
   private anthropic: Anthropic | null = null;
   private googleMaps: GoogleMapsClient;
   private aiProviders: AIProvider[] = [];
+  private waterChemistryProviders: AIProvider[] = [];
+  private generalAIProviders: AIProvider[] = [];
 
   constructor(
     private configService: ConfigService,
@@ -56,6 +58,12 @@ export class AiService implements OnModuleInit {
   }
 
   private async initializeAIProviders() {
+    // Initialize water chemistry providers (use parsing)
+    this.waterChemistryProviders = [];
+    
+    // Initialize general AI providers (return raw response)
+    this.generalAIProviders = [];
+    
     // Initialize Gemini
     try {
       // THIS IS THE FIX - Get the API key from googleCloudAuth service
@@ -72,12 +80,19 @@ export class AiService implements OnModuleInit {
         if (this.genAI) {
           this.logger.log('✅ Gemini GoogleGenerativeAI object created');
           
-          this.aiProviders.push({
+          this.waterChemistryProviders.push({
             name: 'Gemini',
             available: true,
             analyze: this.analyzeWithGemini.bind(this)
           });
-          this.logger.log('✅ Gemini AI provider added to providers list');
+          
+          this.generalAIProviders.push({
+            name: 'Gemini',
+            available: true,
+            analyze: this.analyzeWithGeminiRaw.bind(this)
+          });
+          
+          this.logger.log('✅ Gemini AI provider added to both provider lists');
         } else {
           this.logger.error('❌ Gemini GoogleGenerativeAI object is null after initialization');
         }
@@ -102,12 +117,20 @@ export class AiService implements OnModuleInit {
       this.logger.log(`Anthropic API key exists: ${!!anthropicKey}`);
       if (anthropicKey) {
         this.anthropic = new Anthropic({ apiKey: anthropicKey });
-        this.aiProviders.push({
+        
+        this.waterChemistryProviders.push({
           name: 'Claude',
           available: true,
           analyze: this.analyzeWithClaude.bind(this)
         });
-        this.logger.log('✅ Claude AI initialized as fallback');
+        
+        this.generalAIProviders.push({
+          name: 'Claude',
+          available: true,
+          analyze: this.analyzeWithClaudeRaw.bind(this)
+        });
+        
+        this.logger.log('✅ Claude AI initialized for both provider lists');
       } else {
         this.logger.log('No Anthropic API key found');
       }
@@ -115,14 +138,17 @@ export class AiService implements OnModuleInit {
       this.logger.error('Failed to initialize Claude', error);
     }
 
-    if (this.aiProviders.length === 0) {
+    // Keep the original for backward compatibility
+    this.aiProviders = this.generalAIProviders;
+
+    if (this.waterChemistryProviders.length === 0 && this.generalAIProviders.length === 0) {
       throw new Error('No AI providers available - check API configuration');
     }
 
     // Log the providers array
-    this.logger.log(`AI Providers initialized: ${this.aiProviders.map(p => p.name).join(', ')}`);
-    this.logger.log(`Total providers: ${this.aiProviders.length}`);
-    this.logger.log(`Provider details: ${JSON.stringify(this.aiProviders.map(p => ({ name: p.name, available: p.available })))}`);
+    this.logger.log(`Water Chemistry Providers: ${this.waterChemistryProviders.map(p => p.name).join(', ')}`);
+    this.logger.log(`General AI Providers: ${this.generalAIProviders.map(p => p.name).join(', ')}`);
+    this.logger.log(`Total providers: ${this.waterChemistryProviders.length} chemistry, ${this.generalAIProviders.length} general`);
   }
 
   async analyzeTestStrip(imageBase64: string, sessionId: string): Promise<any> {
@@ -160,14 +186,14 @@ export class AiService implements OnModuleInit {
       this.logger.log(`S3 upload successful: ${uploadResult.url}`);
 
       // Log available providers
-      this.logger.log(`Available AI providers: ${this.aiProviders.filter(p => p.available).map(p => p.name).join(', ')}`);
-      this.logger.log(`All providers with status: ${JSON.stringify(this.aiProviders.map(p => ({ name: p.name, available: p.available })))}`);
+      this.logger.log(`Available AI providers: ${this.waterChemistryProviders.filter(p => p.available).map(p => p.name).join(', ')}`);
+      this.logger.log(`All providers with status: ${JSON.stringify(this.waterChemistryProviders.map(p => ({ name: p.name, available: p.available })))}`);
 
       // Try each AI provider in order
       let lastError: Error | null = null;
       
-      for (let i = 0; i < this.aiProviders.length; i++) {
-        const provider = this.aiProviders[i];
+      for (let i = 0; i < this.waterChemistryProviders.length; i++) {
+        const provider = this.waterChemistryProviders[i];
         this.logger.log(`Provider ${i}: ${provider.name}, available: ${provider.available}`);
         
         if (!provider.available) {
@@ -269,6 +295,40 @@ export class AiService implements OnModuleInit {
     return this.parseAIResponse(text);
   }
 
+  private async analyzeWithGeminiRaw(imageUrl: string, prompt: string): Promise<string> {
+    if (!this.genAI) {
+      throw new Error('Gemini AI not initialized');
+    }
+    
+    try {
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      
+      const imageResponse = await fetch(imageUrl);
+      const imageBuffer = await imageResponse.arrayBuffer();
+      const base64Image = Buffer.from(imageBuffer).toString('base64');
+      
+      const result = await model.generateContent([
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Image
+          }
+        }
+      ]);
+      
+      const response = await result.response;
+      const text = response.text();
+      this.logger.log('Gemini raw response preview:', text.substring(0, 200) + '...');
+      
+      // Return raw text instead of parsing
+      return text;
+    } catch (error) {
+      this.logger.error('Gemini analysis failed:', error);
+      throw error;
+    }
+  }
+
   private async analyzeWithClaude(imageUrl: string, prompt: string): Promise<any> {
     if (!this.anthropic) {
       throw new Error('Claude AI not initialized');
@@ -303,6 +363,48 @@ export class AiService implements OnModuleInit {
     
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     return this.parseAIResponse(text);
+  }
+
+  private async analyzeWithClaudeRaw(imageUrl: string, prompt: string): Promise<string> {
+    if (!this.anthropic) {
+      throw new Error('Claude AI not initialized');
+    }
+    
+    try {
+      const imageResponse = await fetch(imageUrl);
+      const imageBuffer = await imageResponse.arrayBuffer();
+      const base64Image = Buffer.from(imageBuffer).toString('base64');
+      
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: base64Image,
+                },
+              },
+            ],
+          },
+        ],
+      });
+      
+      const text = message.content[0].type === 'text' ? message.content[0].text : '';
+      this.logger.log('Claude raw response preview:', text.substring(0, 200) + '...');
+      
+      // Return raw text instead of parsing
+      return text;
+    } catch (error) {
+      this.logger.error('Claude analysis failed:', error);
+      throw error;
+    }
   }
 
   private getTestStripPrompt(): string {
@@ -484,7 +586,7 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
       // Use provider fallback for analysis
       let lastError: Error | null = null;
       
-      for (const provider of this.aiProviders) {
+      for (const provider of this.generalAIProviders) {
         if (!provider.available) {
           console.log(`⏭️ [AI Service] Skipping ${provider.name} - not available`);
           continue;
