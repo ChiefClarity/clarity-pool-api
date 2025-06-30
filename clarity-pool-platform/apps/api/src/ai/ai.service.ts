@@ -304,61 +304,64 @@ export class AiService implements OnModuleInit {
   }
 
   private getTestStripPrompt(): string {
-    return `You are an expert pool water chemistry analyst with 20 years of experience reading test strips. Analyze this pool water test strip with professional precision.
+    return `You are an expert pool water chemistry analyst. Analyze this test strip and identify ALL visible chemical parameters.
 
-CRITICAL ANALYSIS INSTRUCTIONS:
-1. Examine EVERY pad on the test strip, even if colors are subtle
-2. Use the color reference chart visible in the image for comparison
-3. Even slight color differences indicate chemical presence - do not report null unless pad is missing
+IMPORTANT: Test strips vary by manufacturer. Some have 4 parameters, others have 7, 10, or even 15+. Identify what THIS specific strip measures.
 
-TEST STRIP PAD IDENTIFICATION (Top to Bottom typically):
-- Pad 1: Free Chlorine (FC) - Yellow to purple range (0-10 ppm)
-- Pad 2: Total Chlorine (TC) - Yellow to purple range (0-10 ppm)
-- Pad 3: pH - Yellow to red range (6.2-8.4)
-- Pad 4: Total Alkalinity - Yellow to blue/purple range (0-240 ppm)
-- Pad 5: Cyanuric Acid (Stabilizer) - White to purple range (0-300 ppm)
-- Pad 6: Total Hardness - Red to purple range (0-1000 ppm)
+COMMON TEST STRIP PARAMETERS (in typical order):
+1. Free Chlorine (FC) - Yellow to purple (0-10 ppm)
+2. Total Chlorine (TC) - Yellow to purple (0-10 ppm)  
+3. Bromine - Yellow to orange (0-20 ppm)
+4. pH - Yellow to red (6.2-8.4)
+5. Total Alkalinity - Yellow to blue/green (0-240 ppm)
+6. Total Hardness/Calcium - Red to purple (0-1000 ppm)
+7. Cyanuric Acid (Stabilizer) - White to purple (0-300 ppm)
+8. Copper - Pink to purple (0-3 ppm)
+9. Iron - Pink to red (0-3 ppm)
+10. Nitrate - White to pink (0-50 ppm)
+11. Nitrite - White to pink (0-10 ppm)
+12. Phosphates - White to blue (0-2500 ppb)
+13. Salt - Yellow to brown (0-6000 ppm)
+14. Biguanide - Yellow to purple (0-50 ppm)
+15. Ammonia - Yellow to green (0-6 ppm)
 
-COLOR INTERPRETATION RULES:
-- Free/Total Chlorine: Pale yellow=0-0.5, Light pink=1-3, Medium pink=3-5, Dark purple=5-10
-- pH: Yellow=6.2-6.8, Orange=7.0-7.4, Pink/Red=7.6-8.4
-- Alkalinity: Yellow=0-40, Green=80-120, Blue/Purple=180-240
-- Cyanuric Acid: White/Pale=0-30, Light purple=50-100, Medium purple=100-150, Dark purple=150+
-- Hardness: Pink/Red=0-100, Light purple=250, Dark purple=500+
+ANALYSIS INSTRUCTIONS:
+1. Count the number of pads on the strip
+2. Identify which parameters are being tested based on pad positions and colors
+3. Compare each pad to the reference chart
+4. Only report values for parameters that are actually on THIS strip
+5. Use null for any standard parameter not present on this strip
 
-IMPORTANT CYANURIC ACID NOTES:
-- This pad often appears very pale or white at low levels
-- Even a slight purple tint indicates 30-50 ppm
-- Compare carefully with the reference chart
-- If you see ANY color change from pure white, report a value
-
-ANALYSIS APPROACH:
-1. First identify how many pads are on the strip
-2. Match each pad to its chemical based on position
-3. Compare each pad color to the reference chart
-4. If uncertain between two values, choose the midpoint
-5. NEVER report null unless the pad is physically missing or completely obscured
-
-Return ONLY a JSON object with the following structure:
+Return a JSON object with ALL these fields (use null if not on strip):
 {
   "readings": {
-    "freeChlorine": <number 0-10>,
-    "totalChlorine": <number 0-10>,
-    "ph": <number 6.2-8.4>,
-    "alkalinity": <number 0-240>,
-    "cyanuricAcid": <number 0-300>,
-    "totalHardness": <number 0-1000>
+    "freeChlorine": <number or null>,
+    "totalChlorine": <number or null>,
+    "bromine": <number or null>,
+    "ph": <number or null>,
+    "alkalinity": <number or null>,
+    "totalHardness": <number or null>,
+    "calcium": <number or null>,
+    "cyanuricAcid": <number or null>,
+    "copper": <number or null>,
+    "iron": <number or null>,
+    "nitrate": <number or null>,
+    "nitrite": <number or null>,
+    "phosphates": <number or null>,
+    "salt": <number or null>,
+    "biguanide": <number or null>,
+    "ammonia": <number or null>,
+    "tds": <number or null>
   },
-  "confidence": <number between 0.5 and 1.0>,
-  "notes": "<specific observations about the reading>"
-}
-
-CONFIDENCE SCORING:
-- 0.9-1.0: All pads clearly visible and matched to chart
-- 0.7-0.9: Most pads clear, 1-2 difficult to read precisely
-- 0.5-0.7: Multiple pads difficult but best estimates provided
-
-Remember: Pool owners need readings for ALL chemicals to properly balance their water. Always provide your best professional estimate rather than null values.`;
+  "stripInfo": {
+    "padCount": <number>,
+    "identifiedParameters": ["list", "of", "parameters", "on", "this", "strip"],
+    "manufacturer": "<if visible>",
+    "model": "<if visible>"
+  },
+  "confidence": <0.5-1.0>,
+  "notes": "<observations about the strip and reading quality>"
+}`;
   }
 
   private enhanceReadingsIfNeeded(readings: any): any {
@@ -381,7 +384,6 @@ Remember: Pool owners need readings for ALL chemicals to properly balance their 
 
   private parseAIResponse(text: string): any {
     try {
-      // Extract JSON from the response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON found in AI response');
@@ -389,12 +391,26 @@ Remember: Pool owners need readings for ALL chemicals to properly balance their 
       
       const parsed = JSON.parse(jsonMatch[0]);
       
-      // Validate the response structure
       if (!parsed.readings || typeof parsed.readings !== 'object') {
         throw new Error('Invalid response structure from AI');
       }
       
-      // Enhance readings if needed
+      // Map totalHardness to calcium if calcium is null
+      if (parsed.readings.calcium === null && parsed.readings.totalHardness !== null) {
+        parsed.readings.calcium = parsed.readings.totalHardness;
+      }
+      
+      // Calculate TDS if not provided but we have other values
+      if (parsed.readings.tds === null) {
+        // TDS estimation based on other parameters
+        const estimatedTDS = this.estimateTDS(parsed.readings);
+        if (estimatedTDS !== null) {
+          parsed.readings.tds = estimatedTDS;
+          parsed.readings.tdsEstimated = true;
+        }
+      }
+      
+      // Enhance readings if needed for legacy compatibility
       parsed.readings = this.enhanceReadingsIfNeeded(parsed.readings);
       
       return parsed;
@@ -402,6 +418,24 @@ Remember: Pool owners need readings for ALL chemicals to properly balance their 
       this.logger.error('Failed to parse AI response:', error);
       throw new Error(`Failed to parse AI response: ${error.message}`);
     }
+  }
+
+  private estimateTDS(readings: any): number | null {
+    // Professional TDS estimation based on measured parameters
+    if (!readings.ph) return null;
+    
+    let tds = 0;
+    
+    // Each parameter contributes to TDS
+    if (readings.calcium) tds += readings.calcium * 2.5;
+    if (readings.alkalinity) tds += readings.alkalinity * 1.2;
+    if (readings.salt) tds += readings.salt * 0.5;
+    if (readings.cyanuricAcid) tds += readings.cyanuricAcid * 0.8;
+    
+    // Basic water TDS baseline
+    tds += 200;
+    
+    return Math.round(tds);
   }
 
   async analyzePoolSatellite(address: string, sessionId: string): Promise<any> {
@@ -1022,15 +1056,22 @@ Format your response as a JSON object with these sections:
     const ranges: Record<string, { min: number; max: number }> = {
       freeChlorine: { min: 0, max: 10 },
       totalChlorine: { min: 0, max: 10 },
-      ph: { min: 6.8, max: 8.2 },
-      alkalinity: { min: 60, max: 180 },
-      cyanuricAcid: { min: 0, max: 100 },
-      calcium: { min: 150, max: 500 },
-      copper: { min: 0, max: 0.5 },
-      iron: { min: 0, max: 0.5 },
-      phosphates: { min: 0, max: 2000 },
+      bromine: { min: 0, max: 20 },
+      ph: { min: 6.2, max: 8.4 },
+      alkalinity: { min: 0, max: 240 },
+      totalHardness: { min: 0, max: 1000 },
+      calcium: { min: 0, max: 1000 },
+      cyanuricAcid: { min: 0, max: 300 },
+      copper: { min: 0, max: 3 },
+      iron: { min: 0, max: 3 },
+      nitrate: { min: 0, max: 50 },
+      nitrite: { min: 0, max: 10 },
+      phosphates: { min: 0, max: 2500 },
       salt: { min: 0, max: 6000 },
+      biguanide: { min: 0, max: 50 },
+      ammonia: { min: 0, max: 6 },
       tds: { min: 0, max: 3000 },
+      orp: { min: 0, max: 900 },
     };
 
     const validated = { ...readings };
