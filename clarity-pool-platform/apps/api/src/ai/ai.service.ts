@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -13,7 +13,7 @@ interface AIProvider {
 }
 
 @Injectable()
-export class AiService {
+export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
   private genAI: GoogleGenerativeAI | null = null;
   private anthropic: Anthropic | null = null;
@@ -25,28 +25,31 @@ export class AiService {
     private uploadsService: UploadsService,
     private googleCloudAuth: GoogleCloudAuthService,
   ) {
-    this.initializeAIProviders();
     this.googleMaps = new GoogleMapsClient({});
+  }
+
+  async onModuleInit() {
+    // Wait a moment to ensure GoogleCloudAuthService is initialized
+    await new Promise(resolve => setTimeout(resolve, 100));
+    this.initializeAIProviders();
   }
 
   private initializeAIProviders() {
     // Initialize Gemini
     try {
+      // THIS IS THE FIX - Get the API key from googleCloudAuth service
       const apiKey = this.googleCloudAuth.getApiKey();
+      this.logger.log(`Getting API key from GoogleCloudAuthService...`);
       this.logger.log(`Gemini API key exists: ${!!apiKey}`);
-      this.logger.log(`Gemini API key length: ${apiKey ? apiKey.length : 0}`);
+      this.logger.log(`Gemini API key length: ${apiKey?.length || 0}`);
       
       if (apiKey) {
         this.logger.log('Attempting to initialize Gemini...');
-        this.logger.log(`API key starts with: ${apiKey.substring(0, 8)}...`);
-        
         this.genAI = new GoogleGenerativeAI(apiKey);
         
         // Test if it actually initialized
         if (this.genAI) {
           this.logger.log('✅ Gemini GoogleGenerativeAI object created');
-          this.logger.log(`GoogleGenerativeAI instance type: ${typeof this.genAI}`);
-          this.logger.log(`GoogleGenerativeAI constructor name: ${this.genAI.constructor.name}`);
           
           this.aiProviders.push({
             name: 'Gemini',
@@ -54,21 +57,22 @@ export class AiService {
             analyze: this.analyzeWithGemini.bind(this)
           });
           this.logger.log('✅ Gemini AI provider added to providers list');
-          this.logger.log(`Providers array after Gemini: ${JSON.stringify(this.aiProviders.map(p => ({ name: p.name, available: p.available })))}`);
         } else {
           this.logger.error('❌ Gemini GoogleGenerativeAI object is null after initialization');
         }
       } else {
-        this.logger.warn('No Gemini API key found');
-        this.logger.log(`Auth method being used: ${this.googleCloudAuth.getAuthMethod()}`);
+        const authMethod = this.googleCloudAuth.getAuthMethod();
+        this.logger.log(`Auth method being used: ${authMethod}`);
+        
         if (this.googleCloudAuth.isUsingSecureAuth()) {
           this.logger.warn('⚠️  Gemini SDK does not support service account auth yet - using fallback');
+        } else {
+          this.logger.warn('No Gemini API key found');
         }
       }
     } catch (error) {
       this.logger.error('❌ Failed to initialize Gemini:', error);
       this.logger.error('Error details:', error.message);
-      this.logger.error('Error stack:', error.stack);
     }
 
     // Initialize Anthropic as fallback
