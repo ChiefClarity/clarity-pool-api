@@ -6,6 +6,7 @@ import { Client as GoogleMapsClient } from '@googlemaps/google-maps-services-js'
 import { UploadsService } from '../uploads/uploads.service';
 import { GoogleCloudAuthService, GoogleAuthMethod } from '../common/google-cloud-auth.service';
 import { InitializationStateService } from '../common/initialization-state.service';
+import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
 
 interface AIProvider {
   name: string;
@@ -27,6 +28,7 @@ export class AiService implements OnModuleInit {
     private uploadsService: UploadsService,
     private googleCloudAuth: GoogleCloudAuthService,
     private initState: InitializationStateService,
+    private readonly satelliteParser: SatelliteAnalysisParser,
   ) {
     this.googleMaps = new GoogleMapsClient({});
     // Register this service
@@ -500,7 +502,7 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
           });
           
           // Parse the AI response to extract structured data
-          const parsedAnalysis = this.parseGeminiPoolAnalysis(aiResponse);
+          const parsedAnalysis = this.satelliteParser.parse(aiResponse);
           console.log('📊 [AI Service] Parsed analysis:', parsedAnalysis);
           
           return {
@@ -550,43 +552,6 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
     Provide a detailed JSON response with your findings.`;
   }
 
-  private parseGeminiPoolAnalysis(aiResponse: any): any {
-    try {
-      // Handle if response is string or object
-      const data = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
-      
-      // Map the AI response to our expected structure
-      return {
-        poolDetected: data.pool_present || data.poolPresent || false,
-        poolDimensions: data.pool_dimensions || data.poolDimensions ? {
-          length: parseInt(data.pool_dimensions?.length || data.poolDimensions?.length) || 0,
-          width: parseInt(data.pool_dimensions?.width || data.poolDimensions?.width) || 0,
-          surfaceArea: parseInt(data.pool_dimensions?.surface_area || data.poolDimensions?.surfaceArea) || 0
-        } : undefined,
-        poolShape: data.pool_shape || data.poolShape || 'rectangle',
-        poolFeatures: {
-          hasSpillover: data.features?.includes('spillover') || false,
-          hasSpa: data.features?.includes('spa') || false,
-          hasWaterFeature: data.features?.includes('waterfall') || data.features?.includes('fountain') || false,
-          hasDeck: data.deck_present !== false,
-          deckMaterial: data.deck_material || 'concrete'
-        },
-        propertyFeatures: {
-          treeCount: data.tree_count || 0,
-          treeProximity: data.trees_near_pool ? 'close' : 'far',
-          landscapeType: data.landscape_type || 'tropical',
-          propertySize: data.property_size || 'medium'
-        },
-        confidence: data.confidence || 0.85
-      };
-    } catch (error) {
-      this.logger.error('Failed to parse Gemini response:', error);
-      return {
-        poolDetected: false,
-        confidence: 0
-      };
-    }
-  }
 
   async analyzeEquipment(imageBase64: string, sessionId: string, equipmentType?: string): Promise<any> {
     try {

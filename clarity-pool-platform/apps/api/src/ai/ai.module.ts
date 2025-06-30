@@ -18,6 +18,9 @@ import { AiService } from './ai.service';
 import { GoogleCloudAuthService } from '../common/google-cloud-auth.service';
 import { InitializationStateService } from '../common/initialization-state.service';
 
+// Parsers
+import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
+
 @Module({
   imports: [ConfigModule, HttpModule, PrismaModule, UploadsModule],
   controllers: [AIAnalysisController, AiController, AiHealthController],
@@ -29,6 +32,7 @@ import { InitializationStateService } from '../common/initialization-state.servi
     ClaudeAnalysisService,
     GoogleMapsService,
     AiService,
+    SatelliteAnalysisParser,
   ],
   exports: [AIAnalysisService, AiService, GoogleCloudAuthService, InitializationStateService],
 })
