@@ -640,18 +640,33 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
 
   private getPoolSatellitePrompt(): string {
     return `Analyze this satellite image of a residential property and identify pool-related features.
-    
-    Look for and describe:
-    1. Pool presence and approximate dimensions
-    2. Pool shape (rectangular, kidney, freeform, etc.)
-    3. Pool color/condition (clear blue, green/algae, covered, empty)
-    4. Deck material and condition
-    5. Screen enclosure presence
-    6. Equipment pad location
-    7. Any water features (spa, waterfall, etc.)
-    8. Surrounding landscape that might affect pool
-    
-    Provide a detailed JSON response with your findings.`;
+
+You MUST respond with ONLY a valid JSON object. No markdown formatting, no code blocks, no comments, no explanations before or after.
+
+Required JSON structure (use exactly these field names):
+{
+  "pool_presence": true/false,
+  "pool_dimensions": {
+    "length": "number in feet",
+    "width": "number in feet"
+  },
+  "pool_shape": "rectangle|kidney|oval|freeform|round",
+  "deck_present": true/false,
+  "deck_material_condition": "material type and condition as string",
+  "features": ["spa", "waterfall", "spillover"],
+  "surrounding_landscape": "description of trees and landscaping as a single string",
+  "tree_count": number,
+  "trees_near_pool": true/false,
+  "landscape_type": "tropical|desert|mediterranean|temperate",
+  "property_size": "small|medium|large",
+  "confidence": 0.0-1.0
+}
+
+Important:
+- Respond with ONLY the JSON object
+- Use numbers for dimensions (not strings with units)
+- All fields are required (use empty arrays for features if none)
+- No comments or additional text`;
   }
 
 

@@ -1,5 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SatelliteAnalysisResponse, ParsedSatelliteAnalysis } from '../types/ai-responses';
+import { z } from 'zod';
+import { 
+  SatelliteResponseSchema, 
+  ValidatedSatelliteResponse 
+} from '../schemas/satellite-response.schema';
+import { 
+  ParsedSatelliteAnalysis 
+} from '../types/ai-responses';
 
 @Injectable()
 export class SatelliteAnalysisParser {
@@ -7,156 +14,178 @@ export class SatelliteAnalysisParser {
 
   parse(aiResponse: any): ParsedSatelliteAnalysis {
     try {
-      const data = this.extractJsonFromResponse(aiResponse);
-      return this.mapToAnalysisStructure(data);
+      // Step 1: Extract and clean the response
+      const cleanedResponse = this.cleanResponse(aiResponse);
+      
+      // Step 2: Validate against schema
+      const validatedData = this.validateResponse(cleanedResponse);
+      
+      // Step 3: Map to our internal structure
+      return this.mapToAnalysisStructure(validatedData);
     } catch (error) {
       this.logger.error('Failed to parse satellite analysis:', error);
-      throw new Error(`Invalid satellite analysis response: ${error.message}`);
+      
+      // Return a safe default instead of throwing
+      return {
+        poolDetected: false,
+        poolShape: 'rectangle',
+        confidence: 0,
+        poolFeatures: {
+          hasSpillover: false,
+          hasSpa: false,
+          hasWaterFeature: false,
+          hasDeck: false,
+          deckMaterial: 'unknown'
+        },
+        propertyFeatures: {
+          treeCount: 0,
+          treeProximity: 'far',
+          landscapeType: 'unknown',
+          propertySize: 'unknown'
+        }
+      };
     }
   }
 
-  private extractJsonFromResponse(response: any): SatelliteAnalysisResponse {
-    let jsonStr = typeof response === 'string' ? response : JSON.stringify(response);
+  private cleanResponse(response: any): any {
+    let responseStr = typeof response === 'string' ? response : JSON.stringify(response);
     
-    // Remove markdown code blocks if present
-    jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // Remove markdown code blocks
+    responseStr = responseStr.replace(/```json\s*/gi, '');
+    responseStr = responseStr.replace(/```\s*/g, '');
+    
+    // Extract JSON object (find first { and last })
+    const jsonStart = responseStr.indexOf('{');
+    const jsonEnd = responseStr.lastIndexOf('}');
+    
+    if (jsonStart === -1 || jsonEnd === -1) {
+      throw new Error('No JSON object found in response');
+    }
+    
+    const jsonStr = responseStr.substring(jsonStart, jsonEnd + 1);
     
     try {
       return JSON.parse(jsonStr);
     } catch (error) {
-      // Try to extract JSON from partial response
-      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-      throw new Error('No valid JSON found in response');
+      this.logger.error('Failed to parse JSON:', jsonStr);
+      throw new Error(`Invalid JSON: ${error.message}`);
     }
   }
 
-  private mapToAnalysisStructure(data: SatelliteAnalysisResponse): ParsedSatelliteAnalysis {
-    // Handle variations in property names
-    const poolDetected = data.pool_presence ?? data.pool_present ?? false;
-    const dimensions = data.approximate_dimensions ?? data.pool_dimensions;
-    const shape = data.pool_shape ?? data.poolShape ?? 'rectangle';
+  private validateResponse(data: any): ValidatedSatelliteResponse {
+    try {
+      // This will throw if validation fails
+      return SatelliteResponseSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        this.logger.error('Schema validation failed:', error.errors);
+        
+        // Try to fix common issues
+        const fixed = this.attemptAutoFix(data, error);
+        if (fixed) {
+          return SatelliteResponseSchema.parse(fixed);
+        }
+      }
+      throw error;
+    }
+  }
+
+  private attemptAutoFix(data: any, zodError: z.ZodError): any {
+    const fixed = { ...data };
     
-    // Parse dimensions with error handling
-    const poolDimensions = this.parseDimensions(dimensions);
+    for (const error of zodError.errors) {
+      const path = error.path.join('.');
+      
+      // Fix missing required fields with sensible defaults
+      if (error.code === 'invalid_type' && error.received === 'undefined') {
+        switch (path) {
+          case 'pool_presence':
+            fixed.pool_presence = fixed.pool_present ?? false;
+            break;
+          case 'surrounding_landscape':
+            fixed.surrounding_landscape = 'No landscape description available';
+            break;
+          case 'pool_shape':
+            fixed.pool_shape = fixed.poolShape || 'unknown';
+            break;
+        }
+      }
+    }
     
-    // Extract features safely
-    const features = this.extractFeatures(data);
-    
-    // Parse property features
-    const propertyFeatures = this.parsePropertyFeatures(data.surrounding_landscape);
+    return fixed;
+  }
+
+  private mapToAnalysisStructure(data: ValidatedSatelliteResponse): ParsedSatelliteAnalysis {
+    const poolDetected = data.pool_presence || data.pool_present || false;
+    const dimensions = data.pool_dimensions || data.approximate_dimensions;
     
     return {
       poolDetected,
-      poolDimensions,
-      poolShape: this.normalizePoolShape(shape),
-      poolFeatures: features,
-      propertyFeatures,
-      confidence: poolDetected ? 0.85 : 0.0
+      poolDimensions: dimensions ? {
+        length: this.parseNumber(dimensions.length),
+        width: this.parseNumber(dimensions.width),
+        surfaceArea: this.parseNumber(dimensions.length) * this.parseNumber(dimensions.width)
+      } : undefined,
+      poolShape: this.normalizePoolShape(data.pool_shape || data.poolShape),
+      poolFeatures: {
+        hasSpillover: data.features?.includes('spillover') || false,
+        hasSpa: data.features?.includes('spa') || 
+                data.spa_waterfeature?.includes('spa') || false,
+        hasWaterFeature: data.features?.some(f => 
+          ['waterfall', 'fountain', 'water feature'].includes(f)
+        ) || false,
+        hasDeck: data.deck_present ?? true,
+        deckMaterial: this.extractDeckMaterial(data.deck_material_condition)
+      },
+      propertyFeatures: {
+        treeCount: data.tree_count || this.extractTreeCount(data.surrounding_landscape),
+        treeProximity: data.trees_near_pool ? 'close' : 'far',
+        landscapeType: data.landscape_type || 'unknown',
+        propertySize: data.property_size || 'medium'
+      },
+      confidence: data.confidence || (poolDetected ? 0.85 : 0.0)
     };
   }
 
-  private parseDimensions(dims: any): ParsedSatelliteAnalysis['poolDimensions'] {
-    if (!dims) return undefined;
-    
-    const length = this.parseDistance(dims.length);
-    const width = this.parseDistance(dims.width);
-    
-    if (!length || !width) return undefined;
-    
-    return {
-      length,
-      width,
-      surfaceArea: length * width
-    };
-  }
-
-  private parseDistance(value: any): number {
-    if (!value) return 0;
-    
-    // Handle different formats: "15m", "15 meters", "15 ft", "15"
-    const numMatch = String(value).match(/(\d+(?:\.\d+)?)/);
-    if (!numMatch) return 0;
-    
-    const num = parseFloat(numMatch[1]);
-    
-    // Convert meters to feet if needed
-    if (String(value).toLowerCase().includes('m')) {
-      return Math.round(num * 3.28084);
+  private parseNumber(value: any): number {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const num = parseFloat(value.replace(/[^\d.-]/g, ''));
+      return isNaN(num) ? 0 : num;
     }
-    
-    return Math.round(num);
+    return 0;
   }
 
-  private normalizePoolShape(shape: string): ParsedSatelliteAnalysis['poolShape'] {
-    const normalizedShape = shape.toLowerCase().trim();
+  private normalizePoolShape(shape: any): ParsedSatelliteAnalysis['poolShape'] {
+    if (!shape || typeof shape !== 'string') return 'rectangle';
+    
+    const normalized = shape.toLowerCase().trim();
     const validShapes = ['rectangle', 'oval', 'kidney', 'freeform', 'round'];
     
-    return validShapes.includes(normalizedShape) 
-      ? normalizedShape as ParsedSatelliteAnalysis['poolShape']
+    return validShapes.includes(normalized) 
+      ? normalized as ParsedSatelliteAnalysis['poolShape']
       : 'rectangle';
   }
 
-  private extractFeatures(data: SatelliteAnalysisResponse): ParsedSatelliteAnalysis['poolFeatures'] {
-    const allFeatures = [
-      ...(data.features || []),
-      ...(data.spa_waterfeature || [])
-    ].map(f => f.toLowerCase());
+  private extractDeckMaterial(deckInfo: any): string {
+    if (!deckInfo || typeof deckInfo !== 'string') return 'concrete';
     
-    const deckInfo = data.deck_material_condition?.toLowerCase() || '';
-    
-    return {
-      hasSpillover: allFeatures.some(f => f.includes('spillover')),
-      hasSpa: allFeatures.some(f => f.includes('spa')),
-      hasWaterFeature: allFeatures.some(f => 
-        f.includes('waterfall') || f.includes('fountain') || f.includes('water feature')
-      ),
-      hasDeck: !!deckInfo || allFeatures.some(f => f.includes('deck')),
-      deckMaterial: this.extractDeckMaterial(deckInfo)
-    };
-  }
-
-  private extractDeckMaterial(deckInfo: string): string {
     const materials = ['concrete', 'pavers', 'wood', 'composite', 'stone', 'tile'];
+    const lowerInfo = deckInfo.toLowerCase();
     
     for (const material of materials) {
-      if (deckInfo.includes(material)) {
+      if (lowerInfo.includes(material)) {
         return material;
       }
     }
     
-    return 'concrete'; // default
+    return 'concrete';
   }
 
-  private parsePropertyFeatures(landscape?: string): ParsedSatelliteAnalysis['propertyFeatures'] {
-    const desc = landscape?.toLowerCase() || '';
+  private extractTreeCount(landscape: string): number {
+    if (!landscape) return 0;
     
-    // Extract tree count
-    const treeMatch = desc.match(/(\d+)\s*tree/);
-    const treeCount = treeMatch ? parseInt(treeMatch[1]) : 0;
-    
-    // Determine proximity
-    let proximity: 'close' | 'moderate' | 'far' = 'far';
-    if (desc.includes('near') || desc.includes('close')) {
-      proximity = 'close';
-    } else if (desc.includes('moderate') || desc.includes('some')) {
-      proximity = 'moderate';
-    }
-    
-    return {
-      treeCount,
-      treeProximity: proximity,
-      landscapeType: this.detectLandscapeType(desc),
-      propertySize: 'medium' // Could be enhanced with more logic
-    };
-  }
-
-  private detectLandscapeType(desc: string): string {
-    if (desc.includes('tropical') || desc.includes('palm')) return 'tropical';
-    if (desc.includes('desert') || desc.includes('xeriscape')) return 'desert';
-    if (desc.includes('mediterranean')) return 'mediterranean';
-    return 'temperate';
+    const match = landscape.match(/(\d+)\s*tree/i);
+    return match ? parseInt(match[1]) : 0;
   }
 }
