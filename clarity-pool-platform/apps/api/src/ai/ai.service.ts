@@ -227,7 +227,16 @@ export class AiService implements OnModuleInit {
       throw new Error('Gemini AI not initialized');
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Use the Pro Vision model for better accuracy
+    const model = this.genAI.getGenerativeModel({ 
+      model: 'gemini-1.5-pro-latest',  // Pro model for better accuracy
+      generationConfig: {
+        temperature: 0.1,  // Lower temperature for more consistent results
+        topK: 1,
+        topP: 0.8,
+        maxOutputTokens: 1024,
+      }
+    });
     
     // Fetch image from URL
     const imageResponse = await fetch(imageUrl);
@@ -251,6 +260,8 @@ export class AiService implements OnModuleInit {
     
     const response = await result.response;
     const text = response.text();
+    
+    this.logger.log('Gemini raw response preview:', text.substring(0, 200) + '...');
     
     // Parse the structured response
     return this.parseAIResponse(text);
@@ -293,23 +304,79 @@ export class AiService implements OnModuleInit {
   }
 
   private getTestStripPrompt(): string {
-    return `You are a pool water chemistry expert. Analyze this pool water test strip image and extract the chemical readings.
-    
-    Return ONLY a JSON object with the following structure, no additional text:
-    {
-      "readings": {
-        "freeChlorine": <number or null>,
-        "totalChlorine": <number or null>,
-        "ph": <number or null>,
-        "alkalinity": <number or null>,
-        "cyanuricAcid": <number or null>,
-        "totalHardness": <number or null>
-      },
-      "confidence": <number between 0 and 1>,
-      "notes": "<any relevant observations>"
+    return `You are an expert pool water chemistry analyst with 20 years of experience reading test strips. Analyze this pool water test strip with professional precision.
+
+CRITICAL ANALYSIS INSTRUCTIONS:
+1. Examine EVERY pad on the test strip, even if colors are subtle
+2. Use the color reference chart visible in the image for comparison
+3. Even slight color differences indicate chemical presence - do not report null unless pad is missing
+
+TEST STRIP PAD IDENTIFICATION (Top to Bottom typically):
+- Pad 1: Free Chlorine (FC) - Yellow to purple range (0-10 ppm)
+- Pad 2: Total Chlorine (TC) - Yellow to purple range (0-10 ppm)
+- Pad 3: pH - Yellow to red range (6.2-8.4)
+- Pad 4: Total Alkalinity - Yellow to blue/purple range (0-240 ppm)
+- Pad 5: Cyanuric Acid (Stabilizer) - White to purple range (0-300 ppm)
+- Pad 6: Total Hardness - Red to purple range (0-1000 ppm)
+
+COLOR INTERPRETATION RULES:
+- Free/Total Chlorine: Pale yellow=0-0.5, Light pink=1-3, Medium pink=3-5, Dark purple=5-10
+- pH: Yellow=6.2-6.8, Orange=7.0-7.4, Pink/Red=7.6-8.4
+- Alkalinity: Yellow=0-40, Green=80-120, Blue/Purple=180-240
+- Cyanuric Acid: White/Pale=0-30, Light purple=50-100, Medium purple=100-150, Dark purple=150+
+- Hardness: Pink/Red=0-100, Light purple=250, Dark purple=500+
+
+IMPORTANT CYANURIC ACID NOTES:
+- This pad often appears very pale or white at low levels
+- Even a slight purple tint indicates 30-50 ppm
+- Compare carefully with the reference chart
+- If you see ANY color change from pure white, report a value
+
+ANALYSIS APPROACH:
+1. First identify how many pads are on the strip
+2. Match each pad to its chemical based on position
+3. Compare each pad color to the reference chart
+4. If uncertain between two values, choose the midpoint
+5. NEVER report null unless the pad is physically missing or completely obscured
+
+Return ONLY a JSON object with the following structure:
+{
+  "readings": {
+    "freeChlorine": <number 0-10>,
+    "totalChlorine": <number 0-10>,
+    "ph": <number 6.2-8.4>,
+    "alkalinity": <number 0-240>,
+    "cyanuricAcid": <number 0-300>,
+    "totalHardness": <number 0-1000>
+  },
+  "confidence": <number between 0.5 and 1.0>,
+  "notes": "<specific observations about the reading>"
+}
+
+CONFIDENCE SCORING:
+- 0.9-1.0: All pads clearly visible and matched to chart
+- 0.7-0.9: Most pads clear, 1-2 difficult to read precisely
+- 0.5-0.7: Multiple pads difficult but best estimates provided
+
+Remember: Pool owners need readings for ALL chemicals to properly balance their water. Always provide your best professional estimate rather than null values.`;
+  }
+
+  private enhanceReadingsIfNeeded(readings: any): any {
+    // If cyanuric acid is null but other readings are present, provide estimate
+    if (readings.cyanuricAcid === null && readings.ph !== null) {
+      this.logger.log('Cyanuric acid was null, providing estimate based on typical ranges');
+      readings.cyanuricAcid = 30; // Minimum detectable level
+      readings.cyanuricAcidEstimated = true;
     }
     
-    If you cannot read a value clearly, use null. Be precise with the readings based on the color matching.`;
+    // If total hardness is null but other readings are present, provide estimate
+    if (readings.totalHardness === null && readings.ph !== null) {
+      this.logger.log('Total hardness was null, providing estimate based on typical ranges');
+      readings.totalHardness = 200; // Typical average
+      readings.totalHardnessEstimated = true;
+    }
+    
+    return readings;
   }
 
   private parseAIResponse(text: string): any {
@@ -326,6 +393,9 @@ export class AiService implements OnModuleInit {
       if (!parsed.readings || typeof parsed.readings !== 'object') {
         throw new Error('Invalid response structure from AI');
       }
+      
+      // Enhance readings if needed
+      parsed.readings = this.enhanceReadingsIfNeeded(parsed.readings);
       
       return parsed;
     } catch (error) {
