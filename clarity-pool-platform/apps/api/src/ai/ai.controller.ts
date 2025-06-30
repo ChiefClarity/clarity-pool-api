@@ -68,8 +68,25 @@ export class AiController {
 
   @Post('analyze-pool-satellite')
   async analyzePoolSatellite(@Body() body: { address: string; sessionId: string }) {
-    this.logger.log('Received pool satellite analysis request');
-    return this.aiService.analyzePoolSatellite(body.address, body.sessionId);
+    console.log('🛰️ [AI Controller] Received satellite analysis request:', {
+      address: body.address,
+      sessionId: body.sessionId,
+      timestamp: new Date().toISOString()
+    });
+    
+    try {
+      const result = await this.aiService.analyzePoolSatellite(body.address, body.sessionId);
+      console.log('✅ [AI Controller] Satellite analysis complete:', {
+        success: result.success,
+        hasLocation: !!result.location,
+        hasAnalysis: !!result.analysis,
+        poolDetected: result.analysis?.poolDetected
+      });
+      return result;
+    } catch (error) {
+      console.error('❌ [AI Controller] Satellite analysis failed:', error);
+      throw error;
+    }
   }
 
   @Post('analyze-equipment')

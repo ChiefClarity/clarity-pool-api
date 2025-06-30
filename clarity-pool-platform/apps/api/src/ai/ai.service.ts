@@ -444,7 +444,7 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
 
   async analyzePoolSatellite(address: string, sessionId: string): Promise<any> {
     try {
-      this.logger.log(`Getting satellite view for address: ${address}`);
+      console.log(`🛰️ [AI Service] Starting satellite analysis for address: ${address}`);
       
       // Geocode the address
       const geocodeResponse = await this.googleMaps.geocode({
@@ -460,9 +460,11 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
 
       const location = geocodeResponse.data.results[0].geometry.location;
       const formattedAddress = geocodeResponse.data.results[0].formatted_address;
+      console.log('📍 [AI Service] Geocoded location:', location);
       
       // Get static map with higher resolution
       const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.lat},${location.lng}&zoom=20&size=640x640&scale=2&maptype=satellite&key=${this.configService.get<string>('GOOGLE_MAPS_API_KEY')}`;
+      console.log('🗺️ [AI Service] Fetching satellite image from Google Maps...');
 
       // Fetch and upload satellite image
       const imageResponse = await fetch(staticMapUrl);
@@ -475,21 +477,31 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
         'pool',
         { sessionId, analysisType: 'satellite', address: formattedAddress }
       );
+      console.log('☁️ [AI Service] Image uploaded to storage:', uploadResult.url);
 
       // Use provider fallback for analysis
       let lastError: Error | null = null;
       
       for (const provider of this.aiProviders) {
-        if (!provider.available) continue;
+        if (!provider.available) {
+          console.log(`⏭️ [AI Service] Skipping ${provider.name} - not available`);
+          continue;
+        }
         
+        console.log(`🤖 [AI Service] Attempting analysis with ${provider.name}...`);
         try {
           const aiResponse = await provider.analyze(
             uploadResult.url,
             this.getPoolSatellitePrompt()
           );
+          console.log(`✅ [AI Service] ${provider.name} analysis successful:`, {
+            resultType: typeof aiResponse,
+            resultLength: JSON.stringify(aiResponse).length
+          });
           
           // Parse the AI response to extract structured data
-          const parsedAnalysis = this.parseSatelliteAnalysis(aiResponse);
+          const parsedAnalysis = this.parseGeminiPoolAnalysis(aiResponse);
+          console.log('📊 [AI Service] Parsed analysis:', parsedAnalysis);
           
           return {
             success: true,
@@ -510,6 +522,7 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
             }
           };
         } catch (error) {
+          console.error(`❌ [AI Service] ${provider.name} failed:`, error.message);
           lastError = error;
         }
       }
@@ -537,28 +550,40 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
     Provide a detailed JSON response with your findings.`;
   }
 
-  private parseSatelliteAnalysis(aiResponse: any): any {
+  private parseGeminiPoolAnalysis(aiResponse: any): any {
     try {
-      // AI response might be string or object
+      // Handle if response is string or object
       const data = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
       
+      // Map the AI response to our expected structure
       return {
-        poolDetected: data.poolDetected || data.pool_detected || false,
-        poolDimensions: {
-          length: data.poolDimensions?.length || data.dimensions?.length || 0,
-          width: data.poolDimensions?.width || data.dimensions?.width || 0,
-          surfaceArea: data.poolDimensions?.surfaceArea || data.surface_area || 0,
+        poolDetected: data.pool_present || data.poolPresent || false,
+        poolDimensions: data.pool_dimensions || data.poolDimensions ? {
+          length: parseInt(data.pool_dimensions?.length || data.poolDimensions?.length) || 0,
+          width: parseInt(data.pool_dimensions?.width || data.poolDimensions?.width) || 0,
+          surfaceArea: parseInt(data.pool_dimensions?.surface_area || data.poolDimensions?.surfaceArea) || 0
+        } : undefined,
+        poolShape: data.pool_shape || data.poolShape || 'rectangle',
+        poolFeatures: {
+          hasSpillover: data.features?.includes('spillover') || false,
+          hasSpa: data.features?.includes('spa') || false,
+          hasWaterFeature: data.features?.includes('waterfall') || data.features?.includes('fountain') || false,
+          hasDeck: data.deck_present !== false,
+          deckMaterial: data.deck_material || 'concrete'
         },
-        poolShape: data.poolShape || data.shape || 'unknown',
-        poolFeatures: data.poolFeatures || data.features || {},
-        propertyFeatures: data.propertyFeatures || data.property || {},
-        confidence: data.confidence || 0.85,
+        propertyFeatures: {
+          treeCount: data.tree_count || 0,
+          treeProximity: data.trees_near_pool ? 'close' : 'far',
+          landscapeType: data.landscape_type || 'tropical',
+          propertySize: data.property_size || 'medium'
+        },
+        confidence: data.confidence || 0.85
       };
     } catch (error) {
-      this.logger.error('Failed to parse satellite analysis:', error);
+      this.logger.error('Failed to parse Gemini response:', error);
       return {
         poolDetected: false,
-        confidence: 0,
+        confidence: 0
       };
     }
   }
