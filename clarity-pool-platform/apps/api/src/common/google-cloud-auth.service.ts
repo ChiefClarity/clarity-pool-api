@@ -70,12 +70,13 @@ export class GoogleCloudAuthService implements OnModuleInit {
 
       // Priority 3: API Key (Fallback - must be configured correctly)
       const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+      this.logger.log(`Checking for GEMINI_API_KEY: ${!!apiKey}, length: ${apiKey?.length || 0}`);
+      
       if (apiKey) {
         this.logger.warn('⚠️  Using API key authentication - ensure it has NO referrer restrictions for server use');
-        this.apiKey = apiKey;
+        this.apiKey = apiKey;  // THIS LINE IS IMPORTANT - Store the API key!
         this.authMethod = GoogleAuthMethod.API_KEY;
         
-        // Validate API key configuration
         await this.validateApiKeyConfiguration();
         return;
       }
@@ -117,6 +118,8 @@ export class GoogleCloudAuthService implements OnModuleInit {
   }
 
   getApiKey(): string | null {
+    // Make sure we're returning the stored API key
+    this.logger.log(`getApiKey() called, returning: ${!!this.apiKey}`);
     return this.apiKey;
   }
 
