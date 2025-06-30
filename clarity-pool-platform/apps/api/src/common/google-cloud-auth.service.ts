@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAuth } from 'google-auth-library';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { InitializationStateService } from './initialization-state.service';
 
 export enum GoogleAuthMethod {
   SERVICE_ACCOUNT = 'service_account',
@@ -13,17 +13,33 @@ export enum GoogleAuthMethod {
 @Injectable()
 export class GoogleCloudAuthService implements OnModuleInit {
   private readonly logger = new Logger(GoogleCloudAuthService.name);
+  private readonly serviceName = 'GoogleCloudAuthService';
   private googleAuth: GoogleAuth;
   private authMethod: GoogleAuthMethod;
   private apiKey: string | null = null;
   private projectId: string;
+  private initialized = false;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private initState: InitializationStateService,
+  ) {
     this.projectId = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID', 'clarity-pool-platform');
+    // Register this service with initialization manager
+    this.initState.registerService(this.serviceName);
   }
 
   async onModuleInit() {
-    await this.initializeAuthentication();
+    this.initState.setServiceInitializing(this.serviceName);
+    
+    try {
+      await this.initializeAuthentication();
+      this.initialized = true;
+      this.initState.setServiceReady(this.serviceName);
+    } catch (error) {
+      this.initState.setServiceError(this.serviceName, error.message);
+      throw error;
+    }
   }
 
   private async initializeAuthentication() {
@@ -118,7 +134,9 @@ export class GoogleCloudAuthService implements OnModuleInit {
   }
 
   getApiKey(): string | null {
-    // Make sure we're returning the stored API key
+    if (!this.initialized) {
+      this.logger.warn('getApiKey() called before service initialization');
+    }
     this.logger.log(`getApiKey() called, returning: ${!!this.apiKey}`);
     return this.apiKey;
   }

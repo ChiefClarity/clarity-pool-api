@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Client as GoogleMapsClient } from '@googlemaps/google-maps-services-js';
 import { UploadsService } from '../uploads/uploads.service';
 import { GoogleCloudAuthService, GoogleAuthMethod } from '../common/google-cloud-auth.service';
+import { InitializationStateService } from '../common/initialization-state.service';
 
 interface AIProvider {
   name: string;
@@ -15,6 +16,7 @@ interface AIProvider {
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
+  private readonly serviceName = 'AiService';
   private genAI: GoogleGenerativeAI | null = null;
   private anthropic: Anthropic | null = null;
   private googleMaps: GoogleMapsClient;
@@ -24,17 +26,34 @@ export class AiService implements OnModuleInit {
     private configService: ConfigService,
     private uploadsService: UploadsService,
     private googleCloudAuth: GoogleCloudAuthService,
+    private initState: InitializationStateService,
   ) {
     this.googleMaps = new GoogleMapsClient({});
+    // Register this service
+    this.initState.registerService(this.serviceName);
   }
 
   async onModuleInit() {
-    // Wait a moment to ensure GoogleCloudAuthService is initialized
-    await new Promise(resolve => setTimeout(resolve, 100));
-    this.initializeAIProviders();
+    this.initState.setServiceInitializing(this.serviceName);
+    
+    try {
+      // Wait for GoogleCloudAuthService to be ready first
+      this.logger.log('Waiting for GoogleCloudAuthService to initialize...');
+      await this.initState.waitForService('GoogleCloudAuthService', 5000);
+      this.logger.log('GoogleCloudAuthService is ready!');
+      
+      // Now initialize AI providers
+      await this.initializeAIProviders();
+      
+      this.initState.setServiceReady(this.serviceName);
+    } catch (error) {
+      this.logger.error('Failed to initialize AiService:', error);
+      this.initState.setServiceError(this.serviceName, error.message);
+      throw error;
+    }
   }
 
-  private initializeAIProviders() {
+  private async initializeAIProviders() {
     // Initialize Gemini
     try {
       // THIS IS THE FIX - Get the API key from googleCloudAuth service

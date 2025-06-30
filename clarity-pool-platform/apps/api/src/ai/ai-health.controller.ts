@@ -1,6 +1,7 @@
 import { Controller, Get, Logger } from '@nestjs/common';
 import { GoogleCloudAuthService } from '../common/google-cloud-auth.service';
 import { ConfigService } from '@nestjs/config';
+import { InitializationStateService, ServiceState } from '../common/initialization-state.service';
 
 @Controller('ai/health')
 export class AiHealthController {
@@ -9,6 +10,7 @@ export class AiHealthController {
   constructor(
     private googleCloudAuth: GoogleCloudAuthService,
     private configService: ConfigService,
+    private initState: InitializationStateService,
   ) {}
 
   @Get()
@@ -16,12 +18,19 @@ export class AiHealthController {
     const authMethod = this.googleCloudAuth.getAuthMethod();
     const isSecure = this.googleCloudAuth.isUsingSecureAuth();
     
+    // Get initialization statuses
+    const initStatuses = this.initState.getAllServiceStatuses();
+    
     const geminiConfigured = !!this.googleCloudAuth.getApiKey() || isSecure;
     const claudeConfigured = !!this.configService.get('ANTHROPIC_API_KEY');
     
     const health = {
       status: 'ok',
       timestamp: new Date().toISOString(),
+      initialization: {
+        services: initStatuses,
+        allReady: initStatuses.every(s => s.state === ServiceState.READY)
+      },
       authentication: {
         method: authMethod,
         secure: isSecure,

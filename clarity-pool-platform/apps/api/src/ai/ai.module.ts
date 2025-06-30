@@ -16,18 +16,20 @@ import { ClaudeAnalysisService } from './claude-analysis.service';
 import { GoogleMapsService } from './google-maps.service';
 import { AiService } from './ai.service';
 import { GoogleCloudAuthService } from '../common/google-cloud-auth.service';
+import { InitializationStateService } from '../common/initialization-state.service';
 
 @Module({
   imports: [ConfigModule, HttpModule, PrismaModule, UploadsModule],
   controllers: [AIAnalysisController, AiController, AiHealthController],
   providers: [
+    InitializationStateService,  // Must be first
+    GoogleCloudAuthService,
     AIAnalysisService,
     GeminiVisionService,
     ClaudeAnalysisService,
     GoogleMapsService,
     AiService,
-    GoogleCloudAuthService,
   ],
-  exports: [AIAnalysisService, AiService, GoogleCloudAuthService],
+  exports: [AIAnalysisService, AiService, GoogleCloudAuthService, InitializationStateService],
 })
 export class AIModule {}
