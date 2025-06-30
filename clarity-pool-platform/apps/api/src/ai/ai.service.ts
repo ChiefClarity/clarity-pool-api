@@ -304,80 +304,66 @@ export class AiService implements OnModuleInit {
   }
 
   private getTestStripPrompt(): string {
-    return `You are an expert pool water chemistry analyst. Analyze this test strip and identify ALL visible chemical parameters.
+    return `You are a professional pool water chemistry analyst. Your task is to analyze ONLY what is actually shown on this specific test strip and its reference chart.
 
-IMPORTANT: Test strips vary by manufacturer. Some have 4 parameters, others have 7, 10, or even 15+. Identify what THIS specific strip measures.
+CRITICAL INSTRUCTIONS:
+1. FIRST: Identify the reference chart in the image - this shows which chemicals THIS strip measures
+2. SECOND: Count the number of test pads on the strip
+3. THIRD: Match each pad to its corresponding chemical on the reference chart
+4. IMPORTANT: Only report values for chemicals that are ACTUALLY on this strip's reference chart
+5. Set ALL other chemical values to null - do not guess or estimate chemicals not on this strip
 
-COMMON TEST STRIP PARAMETERS (in typical order):
-1. Free Chlorine (FC) - Yellow to purple (0-10 ppm)
-2. Total Chlorine (TC) - Yellow to purple (0-10 ppm)  
-3. Bromine - Yellow to orange (0-20 ppm)
-4. pH - Yellow to red (6.2-8.4)
-5. Total Alkalinity - Yellow to blue/green (0-240 ppm)
-6. Total Hardness/Calcium - Red to purple (0-1000 ppm)
-7. Cyanuric Acid (Stabilizer) - White to purple (0-300 ppm)
-8. Copper - Pink to purple (0-3 ppm)
-9. Iron - Pink to red (0-3 ppm)
-10. Nitrate - White to pink (0-50 ppm)
-11. Nitrite - White to pink (0-10 ppm)
-12. Phosphates - White to blue (0-2500 ppb)
-13. Salt - Yellow to brown (0-6000 ppm)
-14. Biguanide - Yellow to purple (0-50 ppm)
-15. Ammonia - Yellow to green (0-6 ppm)
+ANALYSIS PROCESS:
+Step 1: Examine the reference chart to identify which chemicals are tested
+Step 2: Count the test pads (typically 4-7 on most strips)
+Step 3: Match pad colors to the reference chart values
+Step 4: Report ONLY those chemicals, set everything else to null
 
-ANALYSIS INSTRUCTIONS:
-1. Count the number of pads on the strip
-2. Identify which parameters are being tested based on pad positions and colors
-3. Compare each pad to the reference chart
-4. Only report values for parameters that are actually on THIS strip
-5. Use null for any standard parameter not present on this strip
+COMMON TEST STRIP CONFIGURATIONS:
+- Basic (4 pads): Free Chlorine, pH, Alkalinity, Hardness
+- Standard (5 pads): + Cyanuric Acid
+- Advanced (6-7 pads): May add ONE of: Copper, Iron, or Salt
+- Professional (7+ pads): Various combinations
 
-Return a JSON object with ALL these fields (use null if not on strip):
+COLOR READING GUIDELINES:
+- Match colors as closely as possible to the reference chart
+- If between two values, choose the closest match
+- Consider lighting conditions but trust the reference chart
+
+Return a JSON object with these fields (use null for any chemical NOT on this strip):
 {
   "readings": {
     "freeChlorine": <number or null>,
     "totalChlorine": <number or null>,
-    "bromine": <number or null>,
     "ph": <number or null>,
     "alkalinity": <number or null>,
     "totalHardness": <number or null>,
-    "calcium": <number or null>,
     "cyanuricAcid": <number or null>,
     "copper": <number or null>,
     "iron": <number or null>,
-    "nitrate": <number or null>,
-    "nitrite": <number or null>,
     "phosphates": <number or null>,
     "salt": <number or null>,
-    "biguanide": <number or null>,
-    "ammonia": <number or null>,
-    "tds": <number or null>
+    "bromine": <number or null>
   },
   "stripInfo": {
-    "padCount": <number>,
-    "identifiedParameters": ["list", "of", "parameters", "on", "this", "strip"],
-    "manufacturer": "<if visible>",
-    "model": "<if visible>"
+    "detectedChemicals": ["list", "of", "chemicals", "actually", "on", "this", "strip"],
+    "padCount": <number of pads visible>,
+    "brand": "<if visible on chart>",
+    "notes": "e.g., '5-pad strip testing FC, pH, Alk, CYA, and Hardness'"
   },
   "confidence": <0.5-1.0>,
-  "notes": "<observations about the strip and reading quality>"
-}`;
+  "analysisNotes": "<any observations about the reading quality or challenges>"
+}
+
+CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST return null for that value. Never make up readings for chemicals that aren't being tested by this specific strip.`;
   }
 
   private enhanceReadingsIfNeeded(readings: any): any {
-    // If cyanuric acid is null but other readings are present, provide estimate
-    if (readings.cyanuricAcid === null && readings.ph !== null) {
-      this.logger.log('Cyanuric acid was null, providing estimate based on typical ranges');
-      readings.cyanuricAcid = 30; // Minimum detectable level
-      readings.cyanuricAcidEstimated = true;
-    }
+    // Only enhance readings if they were marked as estimated
+    // Do NOT add values for chemicals not on the strip
     
-    // If total hardness is null but other readings are present, provide estimate
-    if (readings.totalHardness === null && readings.ph !== null) {
-      this.logger.log('Total hardness was null, providing estimate based on typical ranges');
-      readings.totalHardness = 200; // Typical average
-      readings.totalHardnessEstimated = true;
-    }
+    // This method is now primarily for backwards compatibility
+    // and should not add new chemical readings
     
     return readings;
   }
@@ -393,6 +379,24 @@ Return a JSON object with ALL these fields (use null if not on strip):
       
       if (!parsed.readings || typeof parsed.readings !== 'object') {
         throw new Error('Invalid response structure from AI');
+      }
+      
+      // Log what chemicals were actually detected
+      if (parsed.stripInfo?.detectedChemicals) {
+        this.logger.log(`Test strip detected chemicals: ${parsed.stripInfo.detectedChemicals.join(', ')}`);
+        this.logger.log(`Pad count: ${parsed.stripInfo.padCount}`);
+        
+        // Count non-null readings
+        const nonNullReadings = Object.entries(parsed.readings)
+          .filter(([key, value]) => value !== null)
+          .map(([key]) => key);
+        
+        this.logger.log(`Non-null readings: ${nonNullReadings.join(', ')}`);
+        
+        // Verify consistency
+        if (nonNullReadings.length !== parsed.stripInfo.detectedChemicals.length) {
+          this.logger.warn('Mismatch between detected chemicals and non-null readings');
+        }
       }
       
       // Map totalHardness to calcium if calcium is null
