@@ -483,10 +483,13 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
         if (!provider.available) continue;
         
         try {
-          const result = await provider.analyze(
+          const aiResponse = await provider.analyze(
             uploadResult.url,
             this.getPoolSatellitePrompt()
           );
+          
+          // Parse the AI response to extract structured data
+          const parsedAnalysis = this.parseSatelliteAnalysis(aiResponse);
           
           return {
             success: true,
@@ -497,8 +500,12 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
             },
             satelliteImageUrl: uploadResult.url,
             analysis: {
-              features: result,
-              timestamp: new Date().toISOString(),
+              poolDetected: parsedAnalysis.poolDetected || false,
+              poolDimensions: parsedAnalysis.poolDimensions,
+              poolShape: parsedAnalysis.poolShape,
+              poolFeatures: parsedAnalysis.poolFeatures,
+              propertyFeatures: parsedAnalysis.propertyFeatures,
+              confidence: parsedAnalysis.confidence || 0.85,
               aiModel: provider.name,
             }
           };
@@ -528,6 +535,32 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
     8. Surrounding landscape that might affect pool
     
     Provide a detailed JSON response with your findings.`;
+  }
+
+  private parseSatelliteAnalysis(aiResponse: any): any {
+    try {
+      // AI response might be string or object
+      const data = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
+      
+      return {
+        poolDetected: data.poolDetected || data.pool_detected || false,
+        poolDimensions: {
+          length: data.poolDimensions?.length || data.dimensions?.length || 0,
+          width: data.poolDimensions?.width || data.dimensions?.width || 0,
+          surfaceArea: data.poolDimensions?.surfaceArea || data.surface_area || 0,
+        },
+        poolShape: data.poolShape || data.shape || 'unknown',
+        poolFeatures: data.poolFeatures || data.features || {},
+        propertyFeatures: data.propertyFeatures || data.property || {},
+        confidence: data.confidence || 0.85,
+      };
+    } catch (error) {
+      this.logger.error('Failed to parse satellite analysis:', error);
+      return {
+        poolDetected: false,
+        confidence: 0,
+      };
+    }
   }
 
   async analyzeEquipment(imageBase64: string, sessionId: string, equipmentType?: string): Promise<any> {
