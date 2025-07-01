@@ -871,11 +871,17 @@ Format your response as a JSON object with these sections:
             this.getPoolSurfacePrompt()
           );
           
+          // Parse the AI response to extract the specific fields
+          const parsedResult = this.parsePoolSurfaceResponse(result);
+
           return {
             success: true,
             imageUrl: uploadResult.url,
             analysis: {
-              ...result,
+              material: parsedResult.material,
+              condition: parsedResult.condition,
+              issues: parsedResult.issues,
+              recommendations: parsedResult.recommendations,
               timestamp: new Date().toISOString(),
               aiModel: provider.name,
             }
@@ -921,6 +927,48 @@ Format your response as a JSON object with these sections:
     4. Maintenance Recommendations
     
     Return a detailed JSON analysis.`;
+  }
+
+  private parsePoolSurfaceResponse(aiResponse: any): any {
+    try {
+      // Handle different response formats from AI
+      const response = aiResponse.pool_surface_analysis || aiResponse;
+      
+      // Extract material type
+      let material = response['1. Surface Material Type'] || response.material || 'unknown';
+      // Normalize material names
+      material = material.toLowerCase()
+        .replace('tile (ceramic or glass)', 'tile')
+        .replace('plaster (white, colored, or aggregate)', 'plaster')
+        .replace('pebble (exposed aggregate finish)', 'pebble');
+      
+      // Extract condition
+      let condition = response['2. Surface Condition'] || response.condition || 'unknown';
+      condition = condition.toLowerCase();
+      
+      // Extract issues
+      const issues = response['3. Visible Issues'] || response.issues || {};
+      
+      // Extract recommendations
+      const recommendations = response['4. Maintenance Recommendations'] || 
+                            response.recommendations || 
+                            [];
+      
+      return {
+        material,
+        condition,
+        issues,
+        recommendations: Array.isArray(recommendations) ? recommendations : []
+      };
+    } catch (error) {
+      this.logger.error('Failed to parse pool surface response:', error);
+      return {
+        material: 'unknown',
+        condition: 'unknown',
+        issues: {},
+        recommendations: []
+      };
+    }
   }
 
   async analyzePoolEnvironment(images: string[], sessionId: string): Promise<any> {
