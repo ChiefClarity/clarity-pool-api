@@ -21,6 +21,9 @@ import { InitializationStateService } from '../common/initialization-state.servi
 // Parsers
 import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
 import { SurfaceAnalysisParser } from './parsers/surface-analysis.parser';
+import { EnvironmentAnalysisParser } from './parsers/environment-analysis.parser';
+import { SkimmerAnalysisParser } from './parsers/skimmer-analysis.parser';
+import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
 
 @Module({
   imports: [ConfigModule, HttpModule, PrismaModule, UploadsModule],
@@ -35,6 +38,9 @@ import { SurfaceAnalysisParser } from './parsers/surface-analysis.parser';
     AiService,
     SatelliteAnalysisParser,
     SurfaceAnalysisParser,
+    EnvironmentAnalysisParser,
+    SkimmerAnalysisParser,
+    DeckAnalysisParser,
   ],
   exports: [AIAnalysisService, AiService, GoogleCloudAuthService, InitializationStateService],
 })

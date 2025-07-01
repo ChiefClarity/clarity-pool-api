@@ -8,6 +8,9 @@ import { GoogleCloudAuthService, GoogleAuthMethod } from '../common/google-cloud
 import { InitializationStateService } from '../common/initialization-state.service';
 import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
 import { SurfaceAnalysisParser } from './parsers/surface-analysis.parser';
+import { EnvironmentAnalysisParser } from './parsers/environment-analysis.parser';
+import { SkimmerAnalysisParser } from './parsers/skimmer-analysis.parser';
+import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
 import { SurfaceAnalysisPrompt } from './prompts/surface-analysis.prompt';
 
 interface AIProvider {
@@ -34,6 +37,9 @@ export class AiService implements OnModuleInit {
     private initState: InitializationStateService,
     private readonly satelliteParser: SatelliteAnalysisParser,
     private readonly surfaceParser: SurfaceAnalysisParser,
+    private readonly environmentParser: EnvironmentAnalysisParser,
+    private readonly skimmerParser: SkimmerAnalysisParser,
+    private readonly deckParser: DeckAnalysisParser,
   ) {
     this.googleMaps = new GoogleMapsClient({});
     // Register this service
@@ -960,15 +966,12 @@ Format your response as a JSON object with these sections:
             this.getEnvironmentPrompt()
           );
           
+          const parsedResult = this.environmentParser.parse(result);
+
           return {
             success: true,
             imageUrls: uploadedImages,
-            analysis: {
-              ...result,
-              imagesAnalyzed: images.length,
-              timestamp: new Date().toISOString(),
-              aiModel: provider.name,
-            }
+            analysis: parsedResult
           };
         } catch (error) {
           lastError = error;
@@ -984,40 +987,33 @@ Format your response as a JSON object with these sections:
 
   private getEnvironmentPrompt(): string {
     return `Analyze these pool environment images as a pool maintenance expert.
-    
-    Identify and assess:
-    
-    1. Nearby Vegetation:
-       - Trees (type, distance from pool, overhang)
-       - Bushes/shrubs
-       - Grass areas
-       - Risk of debris falling into pool
-    
-    2. Ground Conditions:
-       - Grass vs dirt/mulch areas
-       - Drainage patterns
-       - Erosion risks
-       - Sprinkler system presence
-    
-    3. Environmental Factors:
-       - Sun exposure (full sun, partial shade, heavy shade)
-       - Wind exposure
-       - Privacy/screening
-       - Neighboring structures
-    
-    4. Maintenance Challenges:
-       - Leaf/debris load expectations
-       - Chemical balance impacts
-       - Algae growth risk factors
-       - Equipment placement issues
-    
-    5. Recommendations:
-       - Trimming needs
-       - Drainage improvements
-       - Chemical adjustment frequency
-       - Equipment protection
-    
-    Provide a comprehensive JSON analysis of the pool environment.`;
+
+CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
+
+Return this exact JSON structure:
+{
+  "vegetation": {
+    "trees_present": true/false,
+    "tree_count": number,
+    "tree_types": ["oak", "palm", etc],
+    "proximity_to_pool": "close|moderate|far",
+    "overhang_risk": "none|low|medium|high",
+    "debris_risk": "low|medium|high"
+  },
+  "ground_conditions": {
+    "surface_type": "grass|dirt|both|concrete|mulch",
+    "drainage": "good|fair|poor",
+    "erosion_risk": "none|low|medium|high",
+    "sprinklers_present": true/false
+  },
+  "environmental_factors": {
+    "sun_exposure": "full_sun|partial_shade|heavy_shade",
+    "wind_exposure": "low|moderate|high",
+    "privacy_level": "open|partial|private"
+  },
+  "maintenance_challenges": ["specific challenges"],
+  "recommendations": ["specific recommendations"]
+}`;
   }
 
   async analyzeSkimmers(images: string[], sessionId: string): Promise<any> {
@@ -1053,15 +1049,12 @@ Format your response as a JSON object with these sections:
             this.getSkimmerPrompt()
           );
           
+          const parsedResult = this.skimmerParser.parse(result);
+
           return {
             success: true,
             imageUrls: uploadedImages,
-            analysis: {
-              ...result,
-              imagesAnalyzed: images.length,
-              timestamp: new Date().toISOString(),
-              aiModel: provider.name,
-            }
+            analysis: parsedResult
           };
         } catch (error) {
           lastError = error;
@@ -1077,36 +1070,26 @@ Format your response as a JSON object with these sections:
 
   private getSkimmerPrompt(): string {
     return `Analyze these pool skimmer images as a pool equipment expert.
-    
-    Count and assess:
-    
-    1. Skimmer Count:
-       - How many unique skimmers are shown?
-       - Are some images of the same skimmer?
-    
-    2. For Each Skimmer:
-       - Basket condition (clean, dirty, damaged, missing)
-       - Lid/cover condition (intact, cracked, missing)
-       - Weir door/flap condition
-       - Overall skimmer housing condition
-       - Any visible cracks or damage
-    
-    3. Maintenance Issues:
-       - Debris accumulation
-       - Need for basket replacement
-       - Lid replacement needs
-       - Cleaning requirements
-    
-    4. Type Identification:
-       - In-ground skimmer
-       - Above-ground skimmer
-       - Brand if visible
-    
-    Return a JSON object with:
-    - detectedSkimmerCount: number
-    - skimmers: array of individual skimmer assessments
-    - overallCondition: excellent/good/fair/poor
-    - recommendations: array of maintenance items`;
+
+CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
+
+Return this exact JSON structure:
+{
+  "detectedSkimmerCount": number,
+  "skimmers": [
+    {
+      "basketCondition": "clean|dirty|damaged|missing",
+      "lidCondition": "intact|cracked|missing",
+      "weirDoorCondition": "good|stuck|missing",
+      "housingCondition": "excellent|good|fair|poor",
+      "visibleDamage": true/false,
+      "debrisLevel": "none|light|moderate|heavy"
+    }
+  ],
+  "overallCondition": "excellent|good|fair|poor",
+  "maintenanceNeeded": ["specific maintenance items"],
+  "recommendations": ["specific recommendations"]
+}`;
   }
 
   async analyzeDeck(images: string[], sessionId: string): Promise<any> {
@@ -1142,15 +1125,12 @@ Format your response as a JSON object with these sections:
             this.getDeckPrompt()
           );
           
+          const parsedResult = this.deckParser.parse(result);
+
           return {
             success: true,
             imageUrls: uploadedImages,
-            analysis: {
-              ...result,
-              imagesAnalyzed: images.length,
-              timestamp: new Date().toISOString(),
-              aiModel: provider.name,
-            }
+            analysis: parsedResult
           };
         } catch (error) {
           lastError = error;
@@ -1166,38 +1146,25 @@ Format your response as a JSON object with these sections:
 
   private getDeckPrompt(): string {
     return `Analyze these pool deck images as a hardscape expert.
-    
-    Identify:
-    
-    1. Deck Material:
-       - Pavers (concrete, brick, stone)
-       - Stamped concrete
-       - Regular concrete
-       - Natural stone
-       - Tile
-       - Wood decking
-       - Composite decking
-    
-    2. Deck Condition:
-       - Surface cleanliness (clean, dirty, stained)
-       - Structural integrity
-       - Cracks or damage
-       - Settlement or unevenness
-       - Slip hazards
-    
-    3. Maintenance Issues:
-       - Pressure washing needs
-       - Sealing requirements
-       - Repair priorities
-       - Safety concerns
-    
-    4. Features:
-       - Coping condition
-       - Expansion joints
-       - Drainage
-       - Trip hazards
-    
-    Return a comprehensive JSON analysis with material type, condition assessment, and recommendations.`;
+
+CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
+
+Return this exact JSON structure:
+{
+  "material": "pavers|stamped_concrete|concrete|natural_stone|tile|wood|composite|other",
+  "condition": "excellent|good|fair|poor",
+  "cleanliness": "pristine|clean|dirty|filthy",
+  "issues": {
+    "cracks": true/false,
+    "stains": true/false,
+    "algae_growth": true/false,
+    "uneven_surfaces": true/false,
+    "drainage_issues": true/false
+  },
+  "safety_concerns": ["trip hazards", "slippery areas", etc],
+  "maintenance_needed": ["pressure washing", "sealing", etc],
+  "recommendations": ["specific recommendations"]
+}`;
   }
 
   // Helper methods
