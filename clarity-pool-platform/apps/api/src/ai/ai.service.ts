@@ -7,6 +7,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import { GoogleCloudAuthService, GoogleAuthMethod } from '../common/google-cloud-auth.service';
 import { InitializationStateService } from '../common/initialization-state.service';
 import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
+import { SurfaceAnalysisPrompt } from './prompts/surface-analysis.prompt';
 
 interface AIProvider {
   name: string;
@@ -899,55 +900,7 @@ Format your response as a JSON object with these sections:
   }
 
   private getPoolSurfacePrompt(): string {
-    return `You are an expert pool inspector analyzing a pool surface image.
-  
-  CRITICAL: Look for these visual cues to identify surface type:
-  
-  1. PLASTER (including Diamond Brite):
-     - Smooth, painted appearance
-     - May have slight texture but generally uniform
-     - Can be white, blue, or other solid colors
-     - May show some discoloration or staining
-     - Diamond Brite has sparkly quartz aggregate mixed in
-  
-  2. TILE:
-     - Visible grout lines between tiles
-     - Geometric patterns
-     - Glossy/reflective surface
-     - Individual tile edges visible
-  
-  3. PEBBLE:
-     - Rough, bumpy texture
-     - Individual pebbles/stones visible
-     - Natural stone appearance
-     - Very textured surface
-  
-  4. VINYL LINER:
-     - Smooth, plastic-like appearance
-     - May have printed patterns
-     - Seams may be visible
-     - Flexible appearance
-  
-  5. FIBERGLASS:
-     - Very smooth, glossy finish
-     - Usually white or light blue
-     - No visible texture
-     - Gel-coat finish
-  
-  Analyze the image and return ONLY a JSON object with:
-  {
-    "material": "plaster|pebble|tile|vinyl|fiberglass",
-    "condition": "excellent|good|fair|poor",
-    "issues": {
-      "stains": "none|light|moderate|heavy",
-      "cracks": "none|minor|major",
-      "roughness": "smooth|slightly rough|very rough",
-      "discoloration": "none|minor|significant"
-    },
-    "recommendations": ["specific maintenance suggestions"]
-  }
-  
-  BE SPECIFIC: If you see a smooth surface with slight sparkle, it's likely Diamond Brite plaster, not tile.`;
+    return SurfaceAnalysisPrompt.getCurrentPrompt();
   }
 
   private parsePoolSurfaceResponse(aiResponse: any): any {
