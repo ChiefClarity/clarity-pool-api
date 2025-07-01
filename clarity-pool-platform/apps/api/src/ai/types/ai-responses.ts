@@ -19,6 +19,7 @@ export interface SatelliteAnalysisResponse {
 
 export interface ParsedSatelliteAnalysis {
   poolDetected: boolean;
+  poolType?: 'inground' | 'above_ground';
   poolDimensions?: {
     length: number;
     width: number;

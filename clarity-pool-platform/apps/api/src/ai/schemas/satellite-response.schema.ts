@@ -3,6 +3,7 @@ import { z } from 'zod';
 // Define the exact structure we expect from AI
 export const SatelliteResponseSchema = z.object({
   pool_presence: z.boolean(),
+  pool_type: z.enum(['inground', 'above_ground']).optional().nullable(),
   pool_present: z.boolean().optional(), // Allow variations
   approximate_dimensions: z.object({
     length: z.union([z.string(), z.number()]),

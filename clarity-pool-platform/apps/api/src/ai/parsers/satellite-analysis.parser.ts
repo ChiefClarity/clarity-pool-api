@@ -121,6 +121,7 @@ export class SatelliteAnalysisParser {
     
     return {
       poolDetected,
+      poolType: data.pool_type || undefined,
       poolDimensions: dimensions ? {
         length: this.parseNumber(dimensions.length),
         width: this.parseNumber(dimensions.width),

@@ -646,6 +646,7 @@ You MUST respond with ONLY a valid JSON object. No markdown formatting, no code 
 Required JSON structure (use exactly these field names):
 {
   "pool_presence": true/false,
+  "pool_type": "inground|above_ground",
   "pool_dimensions": {
     "length": "number in feet",
     "width": "number in feet"
@@ -664,6 +665,7 @@ Required JSON structure (use exactly these field names):
 
 Important:
 - Respond with ONLY the JSON object
+- Determine if pool is inground (built into ground) or above_ground (portable/temporary)
 - Use numbers for dimensions (not strings with units)
 - All fields are required (use empty arrays for features if none)
 - No comments or additional text`;
