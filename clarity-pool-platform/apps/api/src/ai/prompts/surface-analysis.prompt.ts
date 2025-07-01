@@ -6,9 +6,53 @@ export interface PromptVersion {
 }
 
 export class SurfaceAnalysisPrompt {
-  private static readonly CURRENT_VERSION = '1.3.0';
+  private static readonly CURRENT_VERSION = '1.4.0';
   
   private static readonly PROMPTS: Record<string, PromptVersion> = {
+    '1.4.0': {
+      version: '1.4.0',
+      createdAt: new Date('2025-07-01'),
+      changes: [
+        'Emphasized JSON-only response requirement',
+        'Added explicit instructions against markdown/code blocks',
+        'Improved material identification guide',
+        'Added confidence score to response',
+        'Clearer structure for maintenance recommendations'
+      ],
+      prompt: `You are an expert pool inspector analyzing a pool surface image.
+
+CRITICAL INSTRUCTIONS:
+1. Focus on the MAIN POOL SURFACE (floor and walls BELOW waterline)
+2. IGNORE waterline tile, coping, or deck materials
+3. Return ONLY valid JSON - no markdown, no code blocks, no explanations
+
+IDENTIFICATION GUIDE:
+- WATERLINE TILE: Decorative border at water's edge (6-12 inches tall) - NOT the pool surface
+- POOL SURFACE: Material covering the entire floor and walls underwater
+
+Material Types:
+- PLASTER: Smooth, uniform surface (may have sparkles if Diamond Brite)
+- PEBBLE: Rough texture with visible stones throughout
+- TILE: Grout lines covering ALL surfaces including floor (rare)
+- VINYL: Smooth plastic-like surface with possible seams
+- FIBERGLASS: Very smooth glossy gel-coat finish
+
+IMPORTANT: If you see tile ONLY at waterline with smooth surface below = PLASTER
+
+Return this exact JSON structure with NO additional text:
+{
+  "material": "plaster|pebble|tile|vinyl|fiberglass",
+  "condition": "excellent|good|fair|poor",
+  "issues": {
+    "stains": "none|light|moderate|heavy",
+    "cracks": "none|minor|major",
+    "roughness": "smooth|slightly rough|very rough",
+    "discoloration": "none|minor|significant"
+  },
+  "recommendations": ["array of specific maintenance suggestions"],
+  "confidence": 0.95
+}`
+    },
     '1.3.0': {
       version: '1.3.0',
       createdAt: new Date('2025-07-01'),

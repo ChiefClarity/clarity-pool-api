@@ -20,6 +20,7 @@ import { InitializationStateService } from '../common/initialization-state.servi
 
 // Parsers
 import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
+import { SurfaceAnalysisParser } from './parsers/surface-analysis.parser';
 
 @Module({
   imports: [ConfigModule, HttpModule, PrismaModule, UploadsModule],
@@ -33,6 +34,7 @@ import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
     GoogleMapsService,
     AiService,
     SatelliteAnalysisParser,
+    SurfaceAnalysisParser,
   ],
   exports: [AIAnalysisService, AiService, GoogleCloudAuthService, InitializationStateService],
 })

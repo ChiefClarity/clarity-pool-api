@@ -7,6 +7,7 @@ import { UploadsService } from '../uploads/uploads.service';
 import { GoogleCloudAuthService, GoogleAuthMethod } from '../common/google-cloud-auth.service';
 import { InitializationStateService } from '../common/initialization-state.service';
 import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
+import { SurfaceAnalysisParser } from './parsers/surface-analysis.parser';
 import { SurfaceAnalysisPrompt } from './prompts/surface-analysis.prompt';
 
 interface AIProvider {
@@ -32,6 +33,7 @@ export class AiService implements OnModuleInit {
     private googleCloudAuth: GoogleCloudAuthService,
     private initState: InitializationStateService,
     private readonly satelliteParser: SatelliteAnalysisParser,
+    private readonly surfaceParser: SurfaceAnalysisParser,
   ) {
     this.googleMaps = new GoogleMapsClient({});
     // Register this service
@@ -872,20 +874,13 @@ Format your response as a JSON object with these sections:
             this.getPoolSurfacePrompt()
           );
           
-          // Parse the AI response to extract the specific fields
+          // Parse the AI response using the parser
           const parsedResult = this.parsePoolSurfaceResponse(result);
 
           return {
             success: true,
             imageUrl: uploadResult.url,
-            analysis: {
-              material: parsedResult.material,
-              condition: parsedResult.condition,
-              issues: parsedResult.issues,
-              recommendations: parsedResult.recommendations,
-              timestamp: new Date().toISOString(),
-              aiModel: provider.name,
-            }
+            analysis: parsedResult  // Now returns the properly parsed structure
           };
         } catch (error) {
           lastError = error;
@@ -904,76 +899,7 @@ Format your response as a JSON object with these sections:
   }
 
   private parsePoolSurfaceResponse(aiResponse: any): any {
-    try {
-      this.logger.log('Raw AI response:', JSON.stringify(aiResponse));
-      
-      // Handle different response formats from AI
-      const response = aiResponse.pool_surface_analysis || aiResponse;
-      
-      // Extract material type
-      let material = response.material || 
-                     response['1. Surface Material Type'] || 
-                     'unknown';
-      
-      // Log the original material before normalization
-      this.logger.log(`Original material detected: ${material}`);
-      
-      // Normalize material names
-      material = material.toLowerCase()
-        .replace(/tile \(.*?\)/g, 'tile')
-        .replace(/plaster \(.*?\)/g, 'plaster')
-        .replace(/pebble \(.*?\)/g, 'pebble')
-        .trim();
-      
-      // Extract condition
-      let condition = response.condition || 
-                      response['2. Surface Condition'] || 
-                      'unknown';
-      condition = condition.toLowerCase().trim();
-      
-      // Extract and normalize issues
-      const rawIssues = response.issues || 
-                        response['3. Visible Issues'] || 
-                        {};
-      
-      const issues = {
-        stains: this.normalizeIssueSeverity(rawIssues.stains, ['none', 'light', 'moderate', 'heavy']),
-        cracks: this.normalizeIssueSeverity(rawIssues.cracks, ['none', 'minor', 'major']),
-        roughness: this.normalizeIssueSeverity(rawIssues.roughness, ['smooth', 'slightly rough', 'very rough']),
-        discoloration: this.normalizeIssueSeverity(rawIssues.discoloration, ['none', 'minor', 'significant'])
-      };
-      
-      // Extract recommendations
-      const recommendations = response.recommendations || 
-                            response['4. Maintenance Recommendations'] || 
-                            [];
-      
-      const result = {
-        material,
-        condition,
-        issues,
-        recommendations: Array.isArray(recommendations) ? recommendations : [],
-        confidence: response.confidence || 0.85
-      };
-      
-      this.logger.log('Parsed surface analysis:', JSON.stringify(result));
-      
-      return result;
-    } catch (error) {
-      this.logger.error('Failed to parse pool surface response:', error);
-      return {
-        material: 'unknown',
-        condition: 'unknown',
-        issues: {
-          stains: 'none',
-          cracks: 'none',
-          roughness: 'smooth',
-          discoloration: 'none'
-        },
-        recommendations: [],
-        confidence: 0
-      };
-    }
+    return this.surfaceParser.parse(aiResponse);
   }
 
   private normalizeIssueSeverity(value: any, validOptions: string[]): string {
