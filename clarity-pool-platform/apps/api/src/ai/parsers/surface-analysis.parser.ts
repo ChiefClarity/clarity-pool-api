@@ -10,6 +10,10 @@ export const SurfaceResponseSchema = z.object({
     cracks: z.enum(['none', 'minor', 'major']).optional(),
     roughness: z.enum(['smooth', 'slightly rough', 'very rough']).optional(),
     discoloration: z.enum(['none', 'minor', 'significant']).optional(),
+    etching: z.enum(['none', 'minor', 'moderate', 'severe']).optional(),
+    scaling: z.enum(['none', 'light', 'moderate', 'heavy']).optional(),
+    chipping: z.enum(['none', 'minor', 'moderate', 'severe']).optional(),
+    hollow_spots: z.enum(['none', 'few', 'many']).optional(),
   }).optional(),
   recommendations: z.array(z.string()).optional(),
   confidence: z.number().min(0).max(1).optional(),
@@ -25,6 +29,10 @@ export interface ParsedSurfaceAnalysis {
     cracks: string;
     roughness: string;
     discoloration: string;
+    etching: string;
+    scaling: string;
+    chipping: string;
+    hollow_spots: string;
   };
   recommendations: string[];
   confidence: number;
@@ -129,7 +137,11 @@ export class SurfaceAnalysisParser {
       stains: 'none',
       cracks: 'none',
       roughness: 'smooth',
-      discoloration: 'none'
+      discoloration: 'none',
+      etching: 'none',
+      scaling: 'none',
+      chipping: 'none',
+      hollow_spots: 'none'
     };
 
     for (const [key, defaultValue] of Object.entries(defaultIssues)) {
@@ -209,7 +221,11 @@ export class SurfaceAnalysisParser {
         stains: data.issues?.stains || 'none',
         cracks: data.issues?.cracks || 'none',
         roughness: data.issues?.roughness || 'smooth',
-        discoloration: data.issues?.discoloration || 'none'
+        discoloration: data.issues?.discoloration || 'none',
+        etching: data.issues?.etching || 'none',
+        scaling: data.issues?.scaling || 'none',
+        chipping: data.issues?.chipping || 'none',
+        hollow_spots: data.issues?.hollow_spots || 'none'
       },
       recommendations: data.recommendations || [],
       confidence: data.confidence || 0.85
@@ -224,7 +240,11 @@ export class SurfaceAnalysisParser {
         stains: 'none',
         cracks: 'none',
         roughness: 'smooth',
-        discoloration: 'none'
+        discoloration: 'none',
+        etching: 'none',
+        scaling: 'none',
+        chipping: 'none',
+        hollow_spots: 'none'
       },
       recommendations: [],
       confidence: 0

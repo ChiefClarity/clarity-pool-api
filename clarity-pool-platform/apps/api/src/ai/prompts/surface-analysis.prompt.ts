@@ -147,10 +147,41 @@ Analyze the image and return ONLY a JSON object with:
     "stains": "none|light|moderate|heavy",
     "cracks": "none|minor|major",
     "roughness": "smooth|slightly rough|very rough",
-    "discoloration": "none|minor|significant"
+    "discoloration": "none|minor|significant",
+    "etching": "none|minor|moderate|severe",
+    "scaling": "none|light|moderate|heavy",
+    "chipping": "none|minor|moderate|severe",
+    "hollow_spots": "none|few|many"
   },
-  "recommendations": ["specific maintenance suggestions"]
+  "recommendations": ["specific maintenance suggestions"],
+  "confidence": 0.85
 }
+
+Visual indicators for surface issues:
+STAINS: Dark spots, rust marks, mineral deposits, organic growth
+CRACKS: Visible fractures, spider web patterns, structural cracks
+ROUGHNESS: Texture deviation from original smooth finish
+DISCOLORATION: Color changes, fading, uneven coloration
+ETCHING:
+  - Appears as dull, matte patches on shiny surfaces
+  - Often from chemical imbalance (low pH)
+  - Surface feels rough in etched areas
+  - Lost sheen compared to surrounding areas
+SCALING:
+  - White or gray crusty deposits
+  - Calcium carbonate buildup
+  - Often at waterline but can appear anywhere
+  - Raised texture you can feel
+CHIPPING:
+  - Small pieces of surface material missing
+  - Exposed substrate visible
+  - Sharp or rough edges where material broke off
+  - Common around fixtures or high-traffic areas
+HOLLOW SPOTS:
+  - May not be visually obvious in photos
+  - Look for: bulging areas, cracks in circular patterns
+  - Discoloration in patches suggesting delamination
+  - Areas that appear "puffy" or raised
 
 BE SPECIFIC: If you see a smooth surface with slight sparkle, it's likely Diamond Brite plaster, not tile.`
     },

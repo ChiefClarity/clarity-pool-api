@@ -899,7 +899,24 @@ Format your response as a JSON object with these sections:
   }
 
   private parsePoolSurfaceResponse(aiResponse: any): any {
-    return this.surfaceParser.parse(aiResponse);
+    const parsed = this.surfaceParser.parse(aiResponse);
+    
+    // Ensure all issue severities are properly normalized
+    if (parsed.issues) {
+      const rawIssues = parsed.issues;
+      parsed.issues = {
+        stains: this.normalizeIssueSeverity(rawIssues.stains, ['none', 'light', 'moderate', 'heavy']),
+        cracks: this.normalizeIssueSeverity(rawIssues.cracks, ['none', 'minor', 'major']),
+        roughness: this.normalizeIssueSeverity(rawIssues.roughness, ['smooth', 'slightly rough', 'very rough']),
+        discoloration: this.normalizeIssueSeverity(rawIssues.discoloration, ['none', 'minor', 'significant']),
+        etching: this.normalizeIssueSeverity(rawIssues.etching, ['none', 'minor', 'moderate', 'severe']),
+        scaling: this.normalizeIssueSeverity(rawIssues.scaling, ['none', 'light', 'moderate', 'heavy']),
+        chipping: this.normalizeIssueSeverity(rawIssues.chipping, ['none', 'minor', 'moderate', 'severe']),
+        hollow_spots: this.normalizeIssueSeverity(rawIssues.hollow_spots, ['none', 'few', 'many'])
+      };
+    }
+    
+    return parsed;
   }
 
   private normalizeIssueSeverity(value: any, validOptions: string[]): string {
