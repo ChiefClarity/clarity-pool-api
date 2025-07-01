@@ -899,34 +899,55 @@ Format your response as a JSON object with these sections:
   }
 
   private getPoolSurfacePrompt(): string {
-    return `Analyze this pool surface image as an expert pool inspector.
-    
-    Identify:
-    1. Surface Material Type:
-       - Plaster (white, colored, or aggregate)
-       - Pebble (exposed aggregate finish)
-       - Tile (ceramic or glass)
-       - Vinyl liner
-       - Fiberglass
-       - Other/Unknown
-    
-    2. Surface Condition:
-       - Excellent: Like new, no visible wear
-       - Good: Minor wear, no damage
-       - Fair: Moderate wear, minor damage
-       - Poor: Significant wear, needs resurfacing
-    
-    3. Visible Issues:
-       - Stains (type and severity)
-       - Cracks or chips
-       - Rough patches
-       - Delamination
-       - Discoloration
-       - Scale buildup
-    
-    4. Maintenance Recommendations
-    
-    Return a detailed JSON analysis.`;
+    return `You are an expert pool inspector analyzing a pool surface image.
+  
+  CRITICAL: Look for these visual cues to identify surface type:
+  
+  1. PLASTER (including Diamond Brite):
+     - Smooth, painted appearance
+     - May have slight texture but generally uniform
+     - Can be white, blue, or other solid colors
+     - May show some discoloration or staining
+     - Diamond Brite has sparkly quartz aggregate mixed in
+  
+  2. TILE:
+     - Visible grout lines between tiles
+     - Geometric patterns
+     - Glossy/reflective surface
+     - Individual tile edges visible
+  
+  3. PEBBLE:
+     - Rough, bumpy texture
+     - Individual pebbles/stones visible
+     - Natural stone appearance
+     - Very textured surface
+  
+  4. VINYL LINER:
+     - Smooth, plastic-like appearance
+     - May have printed patterns
+     - Seams may be visible
+     - Flexible appearance
+  
+  5. FIBERGLASS:
+     - Very smooth, glossy finish
+     - Usually white or light blue
+     - No visible texture
+     - Gel-coat finish
+  
+  Analyze the image and return ONLY a JSON object with:
+  {
+    "material": "plaster|pebble|tile|vinyl|fiberglass",
+    "condition": "excellent|good|fair|poor",
+    "issues": {
+      "stains": "none|light|moderate|heavy",
+      "cracks": "none|minor|major",
+      "roughness": "smooth|slightly rough|very rough",
+      "discoloration": "none|minor|significant"
+    },
+    "recommendations": ["specific maintenance suggestions"]
+  }
+  
+  BE SPECIFIC: If you see a smooth surface with slight sparkle, it's likely Diamond Brite plaster, not tile.`;
   }
 
   private parsePoolSurfaceResponse(aiResponse: any): any {
