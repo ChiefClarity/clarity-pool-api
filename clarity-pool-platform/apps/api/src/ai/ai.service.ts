@@ -956,19 +956,31 @@ Format your response as a JSON object with these sections:
       const response = aiResponse.pool_surface_analysis || aiResponse;
       
       // Extract material type
-      let material = response['1. Surface Material Type'] || response.material || 'unknown';
-      // Normalize material names
+      let material = response['1. Surface Material Type'] || 
+                     response.material || 
+                     'unknown';
       material = material.toLowerCase()
         .replace('tile (ceramic or glass)', 'tile')
         .replace('plaster (white, colored, or aggregate)', 'plaster')
         .replace('pebble (exposed aggregate finish)', 'pebble');
       
       // Extract condition
-      let condition = response['2. Surface Condition'] || response.condition || 'unknown';
+      let condition = response['2. Surface Condition'] || 
+                      response.condition || 
+                      'unknown';
       condition = condition.toLowerCase();
       
-      // Extract issues
-      const issues = response['3. Visible Issues'] || response.issues || {};
+      // Extract and normalize issues
+      const rawIssues = response['3. Visible Issues'] || 
+                        response.issues || 
+                        {};
+      
+      const issues = {
+        stains: this.normalizeIssueSeverity(rawIssues.stains, ['none', 'light', 'moderate', 'heavy']),
+        cracks: this.normalizeIssueSeverity(rawIssues.cracks, ['none', 'minor', 'major']),
+        roughness: rawIssues.roughness || 'smooth',
+        discoloration: this.normalizeIssueSeverity(rawIssues.discoloration, ['none', 'minor', 'significant'])
+      };
       
       // Extract recommendations
       const recommendations = response['4. Maintenance Recommendations'] || 
@@ -986,10 +998,22 @@ Format your response as a JSON object with these sections:
       return {
         material: 'unknown',
         condition: 'unknown',
-        issues: {},
+        issues: {
+          stains: 'none',
+          cracks: 'none',
+          roughness: 'smooth',
+          discoloration: 'none'
+        },
         recommendations: []
       };
     }
+  }
+
+  private normalizeIssueSeverity(value: any, validOptions: string[]): string {
+    if (!value) return validOptions[0]; // Return 'none' or first option
+    
+    const normalized = value.toString().toLowerCase();
+    return validOptions.find(opt => opt === normalized) || validOptions[0];
   }
 
   async analyzePoolEnvironment(images: string[], sessionId: string): Promise<any> {
