@@ -905,47 +905,60 @@ Format your response as a JSON object with these sections:
 
   private parsePoolSurfaceResponse(aiResponse: any): any {
     try {
+      this.logger.log('Raw AI response:', JSON.stringify(aiResponse));
+      
       // Handle different response formats from AI
       const response = aiResponse.pool_surface_analysis || aiResponse;
       
       // Extract material type
-      let material = response['1. Surface Material Type'] || 
-                     response.material || 
+      let material = response.material || 
+                     response['1. Surface Material Type'] || 
                      'unknown';
+      
+      // Log the original material before normalization
+      this.logger.log(`Original material detected: ${material}`);
+      
+      // Normalize material names
       material = material.toLowerCase()
-        .replace('tile (ceramic or glass)', 'tile')
-        .replace('plaster (white, colored, or aggregate)', 'plaster')
-        .replace('pebble (exposed aggregate finish)', 'pebble');
+        .replace(/tile \(.*?\)/g, 'tile')
+        .replace(/plaster \(.*?\)/g, 'plaster')
+        .replace(/pebble \(.*?\)/g, 'pebble')
+        .trim();
       
       // Extract condition
-      let condition = response['2. Surface Condition'] || 
-                      response.condition || 
+      let condition = response.condition || 
+                      response['2. Surface Condition'] || 
                       'unknown';
-      condition = condition.toLowerCase();
+      condition = condition.toLowerCase().trim();
       
       // Extract and normalize issues
-      const rawIssues = response['3. Visible Issues'] || 
-                        response.issues || 
+      const rawIssues = response.issues || 
+                        response['3. Visible Issues'] || 
                         {};
       
       const issues = {
         stains: this.normalizeIssueSeverity(rawIssues.stains, ['none', 'light', 'moderate', 'heavy']),
         cracks: this.normalizeIssueSeverity(rawIssues.cracks, ['none', 'minor', 'major']),
-        roughness: rawIssues.roughness || 'smooth',
+        roughness: this.normalizeIssueSeverity(rawIssues.roughness, ['smooth', 'slightly rough', 'very rough']),
         discoloration: this.normalizeIssueSeverity(rawIssues.discoloration, ['none', 'minor', 'significant'])
       };
       
       // Extract recommendations
-      const recommendations = response['4. Maintenance Recommendations'] || 
-                            response.recommendations || 
+      const recommendations = response.recommendations || 
+                            response['4. Maintenance Recommendations'] || 
                             [];
       
-      return {
+      const result = {
         material,
         condition,
         issues,
-        recommendations: Array.isArray(recommendations) ? recommendations : []
+        recommendations: Array.isArray(recommendations) ? recommendations : [],
+        confidence: response.confidence || 0.85
       };
+      
+      this.logger.log('Parsed surface analysis:', JSON.stringify(result));
+      
+      return result;
     } catch (error) {
       this.logger.error('Failed to parse pool surface response:', error);
       return {
@@ -957,7 +970,8 @@ Format your response as a JSON object with these sections:
           roughness: 'smooth',
           discoloration: 'none'
         },
-        recommendations: []
+        recommendations: [],
+        confidence: 0
       };
     }
   }

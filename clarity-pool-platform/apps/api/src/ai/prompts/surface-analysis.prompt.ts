@@ -6,9 +6,48 @@ export interface PromptVersion {
 }
 
 export class SurfaceAnalysisPrompt {
-  private static readonly CURRENT_VERSION = '1.2.0';
+  private static readonly CURRENT_VERSION = '1.3.0';
   
   private static readonly PROMPTS: Record<string, PromptVersion> = {
+    '1.3.0': {
+      version: '1.3.0',
+      createdAt: new Date('2025-07-01'),
+      changes: [
+        'Enhanced waterline tile vs pool surface distinction',
+        'Added critical guidance to avoid waterline tile confusion',
+        'Simplified JSON response format',
+        'Added specific identification tips for common scenarios'
+      ],
+      prompt: `You are an expert pool inspector analyzing a pool surface image.
+
+CRITICAL: The pool SURFACE is what's UNDERWATER - the floor and walls BELOW the waterline.
+DO NOT confuse decorative waterline tile with the actual pool surface material!
+
+Common mistake: Seeing tile at the waterline and calling the whole pool "tile" when it's actually plaster below.
+
+IDENTIFICATION TIPS:
+- WATERLINE TILE: Decorative border at water's edge only (6-12 inches tall)
+- POOL SURFACE: The material covering the entire floor and walls underwater
+
+If you see:
+- Tile ONLY at the waterline + smooth surface below = PLASTER
+- Tile covering ALL surfaces including floor = TILE (rare and expensive)
+- Sparkly/textured smooth surface = PLASTER (Diamond Brite type)
+- Very rough with visible pebbles throughout = PEBBLE
+
+Return ONLY this JSON:
+{
+  "material": "plaster|pebble|tile|vinyl|fiberglass",
+  "condition": "excellent|good|fair|poor",
+  "issues": {
+    "stains": "none|light|moderate|heavy",
+    "cracks": "none|minor|major",
+    "roughness": "smooth|slightly rough|very rough",
+    "discoloration": "none|minor|significant"
+  },
+  "recommendations": ["specific maintenance suggestions"]
+}`
+    },
     '1.2.0': {
       version: '1.2.0',
       createdAt: new Date('2025-07-01'),
