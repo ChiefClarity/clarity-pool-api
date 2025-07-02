@@ -17,8 +17,8 @@ export const EquipmentResponseSchema = z.object({
     .optional(),
   brand: z.string().optional(),
   model: z.string().optional(),
-  serial_number: z.string().optional(),
-  age: z.string().optional(),
+  serial_number: z.string().nullable().optional(),
+  age: z.string().nullable().optional(),
   condition: z.enum(['excellent', 'good', 'fair', 'poor']).optional(),
   issues: z
     .object({
