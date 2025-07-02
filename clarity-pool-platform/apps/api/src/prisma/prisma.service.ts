@@ -1,10 +1,20 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+  Inject,
+  Optional,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { databaseConfig } from '../config/database.config';
 import { DatabaseMonitorService } from '../monitoring/database-monitor.service';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(PrismaService.name);
   private isDatabaseConnected = false;
   private connectionAttempts = 0;
@@ -13,8 +23,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private lastSuccessfulQuery: Date | null = null;
 
   constructor(
-    @Optional() @Inject(DatabaseMonitorService) 
-    private databaseMonitor?: DatabaseMonitorService
+    @Optional()
+    @Inject(DatabaseMonitorService)
+    private databaseMonitor?: DatabaseMonitorService,
   ) {
     super({
       ...databaseConfig.prismaOptions,
@@ -23,7 +34,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           url: databaseConfig.poolUrl,
         },
       },
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error', 'warn'],
+      log:
+        process.env.NODE_ENV === 'development'
+          ? ['query', 'error', 'warn']
+          : ['error', 'warn'],
     });
 
     // Enable query logging using Prisma extensions (Prisma 4.7.0+)
@@ -32,7 +46,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit() {
     await this.connectWithRetry();
-    
+
     // Start connection pool monitoring
     if (this.databaseMonitor) {
       setInterval(() => this.updateConnectionPoolStats(), 30000); // Every 30 seconds
@@ -42,49 +56,60 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private async connectWithRetry() {
     const dbUrl = process.env.DATABASE_URL || '';
     const maskedUrl = this.maskConnectionString(dbUrl);
-    
+
     this.logger.log(`Attempting database connection to: ${maskedUrl}`);
 
     while (this.connectionAttempts < this.maxConnectionAttempts) {
       this.connectionAttempts++;
-      
+
       try {
-        this.logger.log(`Connection attempt ${this.connectionAttempts}/${this.maxConnectionAttempts}...`);
-        
+        this.logger.log(
+          `Connection attempt ${this.connectionAttempts}/${this.maxConnectionAttempts}...`,
+        );
+
         const startTime = Date.now();
         await this.$connect();
         const connectionTime = Date.now() - startTime;
-        
+
         this.isDatabaseConnected = true;
         this.lastSuccessfulQuery = new Date();
-        
-        this.logger.log(`✅ Database connected successfully in ${connectionTime}ms`);
+
+        this.logger.log(
+          `✅ Database connected successfully in ${connectionTime}ms`,
+        );
         this.logger.log(`   Connection type: ${this.getConnectionType()}`);
-        
+
         // Verify connection with a simple query
         await this.$queryRaw`SELECT 1`;
         this.logger.log('✅ Database connection verified');
-        
+
         return;
       } catch (error) {
         this.lastConnectionError = error as Error;
         this.isDatabaseConnected = false;
-        
-        this.logger.error(`Connection attempt ${this.connectionAttempts} failed:`, error.message);
-        
+
+        this.logger.error(
+          `Connection attempt ${this.connectionAttempts} failed:`,
+          error.message,
+        );
+
         if (this.connectionAttempts < this.maxConnectionAttempts) {
           const retryDelay = this.connectionAttempts * 2000; // Exponential backoff
           this.logger.log(`Retrying in ${retryDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
         }
       }
     }
-    
+
     // All connection attempts failed
     this.logger.warn('⚠️  Database connection failed - running in mock mode');
-    this.logger.warn('   To use a real database, configure DATABASE_URL correctly');
-    this.logger.warn('   Expected format: postgresql://user:pass@host:port/db?pgbouncer=true');
-    
+    this.logger.warn(
+      '   To use a real database, configure DATABASE_URL correctly',
+    );
+    this.logger.warn(
+      '   Expected format: postgresql://user:pass@host:port/db?pgbouncer=true',
+    );
+
     if (this.lastConnectionError) {
       this.analyzeConnectionError(this.lastConnectionError);
     }
@@ -92,8 +117,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   private analyzeConnectionError(error: Error) {
     const errorMessage = error.message;
-    
-    if (errorMessage.includes('P1001') || errorMessage.includes('ECONNREFUSED')) {
+
+    if (
+      errorMessage.includes('P1001') ||
+      errorMessage.includes('ECONNREFUSED')
+    ) {
       this.logger.error('🔍 Analysis: Cannot reach database server');
       this.logger.error('   - Check if DATABASE_URL is correct');
       this.logger.error('   - Verify network connectivity');
@@ -106,7 +134,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       this.logger.error('🔍 Analysis: Database does not exist');
       this.logger.error('   - Ensure database is created in Supabase');
       this.logger.error('   - Check database name in connection string');
-    } else if (errorMessage.includes('P1010') || errorMessage.includes('password authentication')) {
+    } else if (
+      errorMessage.includes('P1010') ||
+      errorMessage.includes('password authentication')
+    ) {
       this.logger.error('🔍 Analysis: Authentication failed');
       this.logger.error('   - Verify username and password');
       this.logger.error('   - Check if using correct connection string');
@@ -157,7 +188,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const url = process.env.DATABASE_URL || '';
     if (url.includes('pooler.supabase.com:6543')) return 'Transaction Pooler';
     if (url.includes('pooler.supabase.com:5432')) return 'Session Pooler';
-    if (url.includes('db.') && url.includes(':5432')) return 'Direct Connection';
+    if (url.includes('db.') && url.includes(':5432'))
+      return 'Direct Connection';
     return 'Unknown';
   }
 
@@ -174,7 +206,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       const startTime = Date.now();
       await this.$queryRaw`SELECT 1`;
       const queryTime = Date.now() - startTime;
-      
+
       return {
         status: 'healthy',
         responseTime: `${queryTime}ms`,
@@ -200,27 +232,27 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   // Helper method to execute raw queries with monitoring
   async executeRawQuery<T = any>(query: string, params?: any[]): Promise<T> {
     const startTime = Date.now();
-    
+
     try {
-      const result = params 
+      const result = params
         ? await this.$queryRawUnsafe(query, ...params)
         : await this.$queryRawUnsafe(query);
-      
+
       const duration = Date.now() - startTime;
-      
+
       if (this.databaseMonitor) {
         this.databaseMonitor.recordQuery(query, duration, params);
       }
-      
+
       this.lastSuccessfulQuery = new Date();
       return result as T;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       if (this.databaseMonitor) {
         this.databaseMonitor.recordQuery(`[ERROR] ${query}`, duration, params);
       }
-      
+
       throw error;
     }
   }
@@ -233,7 +265,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       const active = Math.floor(Math.random() * 5);
       const total = 10;
       const idle = total - active;
-      
+
       this.databaseMonitor.updateConnectionPoolStats(active, idle, total);
     }
   }

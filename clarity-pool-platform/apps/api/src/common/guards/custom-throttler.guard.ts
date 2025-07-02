@@ -5,7 +5,7 @@ import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler';
 export class CustomThrottlerGuard extends ThrottlerGuard {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    
+
     // Check for bypass token
     const authHeader = request.headers.authorization;
     if (authHeader?.startsWith('Bearer internal-service-token')) {
@@ -13,11 +13,12 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     }
 
     // Check for whitelisted IPs
-    const clientIp = request.headers['x-forwarded-for']?.split(',')[0] || 
-                     request.headers['x-real-ip'] || 
-                     request.connection?.remoteAddress || 
-                     request.ip;
-                     
+    const clientIp =
+      request.headers['x-forwarded-for']?.split(',')[0] ||
+      request.headers['x-real-ip'] ||
+      request.connection?.remoteAddress ||
+      request.ip;
+
     if (this.isWhitelistedIp(clientIp)) {
       return true;
     }
@@ -34,8 +35,10 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
         user: request.user?.id,
         timestamp: new Date().toISOString(),
       });
-      
-      throw new ThrottlerException('Too many requests. Please try again later.');
+
+      throw new ThrottlerException(
+        'Too many requests. Please try again later.',
+      );
     }
   }
 

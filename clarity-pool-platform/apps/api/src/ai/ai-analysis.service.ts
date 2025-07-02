@@ -53,15 +53,15 @@ export class AIAnalysisService {
       // 1. Get satellite view of property
       let satelliteData = null;
       let satelliteAnalysis = null;
-      
+
       try {
         satelliteData = await this.googleMaps.getPoolSatelliteView(
-          `${session.customer.address}, ${session.customer.city}, ${session.customer.state} ${session.customer.zipCode}`
+          `${session.customer.address}, ${session.customer.city}, ${session.customer.state} ${session.customer.zipCode}`,
         );
 
         // 2. Analyze satellite image with Gemini
         satelliteAnalysis = await this.gemini.analyzePoolFromSatellite(
-          satelliteData.imageData
+          satelliteData.imageData,
         );
       } catch (error) {
         this.logger.warn('Satellite analysis skipped', error);
@@ -78,15 +78,15 @@ export class AIAnalysisService {
       if (session.voiceNoteUrl) {
         // In production, transcribe with Whisper first
         // For now, use placeholder
-        const transcript = "Tech notes about pool condition..."; // TODO: Implement transcription
+        const transcript = 'Tech notes about pool condition...'; // TODO: Implement transcription
         voiceAnalysis = await this.claude.transcribeAndAnalyzeVoiceNote(
           transcript,
-          session.voiceNoteDuration || 0
+          session.voiceNoteDuration || 0,
         );
       }
 
       // 5. Analyze equipment photos
-      let equipmentAnalysis: any[] = [];
+      const equipmentAnalysis: any[] = [];
       if (equipment?.pumpPhotoUrls) {
         // TODO: Analyze each photo with Gemini Vision
         this.logger.log('Equipment photo analysis pending implementation');
@@ -102,7 +102,7 @@ export class AIAnalysisService {
         },
         equipmentAnalysis,
         voiceAnalysis,
-        satelliteAnalysis
+        satelliteAnalysis,
       );
 
       // 7. Save analysis to database
@@ -149,10 +149,17 @@ export class AIAnalysisService {
     }
   }
 
-  async analyzeEquipmentPhoto(sessionId: string, photoUrl: string, photoBuffer?: Buffer) {
+  async analyzeEquipmentPhoto(
+    sessionId: string,
+    photoUrl: string,
+    photoBuffer?: Buffer,
+  ) {
     try {
-      const analysis = await this.gemini.analyzeEquipmentPhoto(photoUrl, photoBuffer);
-      
+      const analysis = await this.gemini.analyzeEquipmentPhoto(
+        photoUrl,
+        photoBuffer,
+      );
+
       // Update session with equipment analysis
       const session = await this.prisma.onboardingSession.findUnique({
         where: { id: sessionId },
@@ -160,7 +167,7 @@ export class AIAnalysisService {
       });
 
       if (session?.aiAnalysis) {
-        const currentEquipment = session.aiAnalysis.equipment as any[] || [];
+        const currentEquipment = (session.aiAnalysis.equipment as any[]) || [];
         currentEquipment.push({
           ...analysis,
           analyzedAt: new Date(),
@@ -171,11 +178,12 @@ export class AIAnalysisService {
           where: { id: session.aiAnalysis.id },
           data: {
             equipment: currentEquipment,
-            equipmentStatus: this.calculateOverallEquipmentStatus(currentEquipment),
+            equipmentStatus:
+              this.calculateOverallEquipmentStatus(currentEquipment),
           },
         });
       }
-      
+
       return analysis;
     } catch (error) {
       this.logger.error('Equipment photo analysis failed', error);
@@ -185,8 +193,8 @@ export class AIAnalysisService {
 
   private calculateOverallEquipmentStatus(equipment: any[]): string {
     if (!equipment.length) return 'unknown';
-    
-    const conditions = equipment.map(e => e.condition);
+
+    const conditions = equipment.map((e) => e.condition);
     if (conditions.includes('poor')) return 'poor';
     if (conditions.includes('fair')) return 'fair';
     if (conditions.includes('good')) return 'good';
@@ -212,7 +220,8 @@ export class AIAnalysisService {
     const poolData = {
       volume: 20000, // TODO: Calculate from dimensions
       equipmentCondition: analysis.equipmentStatus,
-      treeCoverage: (analysis.propertyFeatures as any)?.treeCoverage || 'moderate',
+      treeCoverage:
+        (analysis.propertyFeatures as any)?.treeCoverage || 'moderate',
       waterStatus: analysis.waterStatus,
       specialFactors: analysis.voiceInsights || [],
     };

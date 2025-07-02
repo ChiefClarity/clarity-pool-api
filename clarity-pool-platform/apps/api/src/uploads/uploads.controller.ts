@@ -1,13 +1,13 @@
-import { 
-  Controller, 
-  Post, 
-  Delete, 
-  Body, 
-  UseGuards, 
+import {
+  Controller,
+  Post,
+  Delete,
+  Body,
+  UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
-  Param
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,20 +19,25 @@ export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}
 
   @Post('image')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB
-    },
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
-        return cb(new BadRequestException('Only image files are allowed'), false);
-      }
-      cb(null, true);
-    },
-  }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+      },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+          return cb(
+            new BadRequestException('Only image files are allowed'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @Body('category') category: string = 'general'
+    @Body('category') category: string = 'general',
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
@@ -50,7 +55,7 @@ export class UploadsController {
       {
         originalName: file.originalname,
         size: file.size.toString(),
-      }
+      },
     );
   }
 

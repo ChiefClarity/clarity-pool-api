@@ -13,14 +13,13 @@ import { SentryExceptionFilter } from './common/filters/sentry-exception.filter'
 import { SecurityConfig } from './config/security.config';
 import * as express from 'express';
 
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Increase payload size limit (even with compression, multiple images need room)
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
-  
+
   // LOG EVERY SINGLE REQUEST
   app.use((req: any, _res: any, next: any) => {
     console.log(`🚨🚨🚨 [INCOMING REQUEST] ${req.method} ${req.url}`);
@@ -28,33 +27,33 @@ async function bootstrap() {
     console.log(`🚨🚨🚨 [REQUEST BODY EXISTS] ${!!req.body}`);
     console.log(`🚨🚨🚨 [CONTENT-TYPE] ${req.headers['content-type']}`);
     console.log(`🚨🚨🚨 [CONTENT-LENGTH] ${req.headers['content-length']}`);
-    
+
     // If POST request, try to log body
     if (req.method === 'POST' && req.body) {
       console.log(`🚨🚨🚨 [BODY KEYS] ${Object.keys(req.body)}`);
     }
-    
+
     next();
   });
-  
+
   // Get security config
   const securityConfig = app.get(SecurityConfig);
-  
+
   // Apply Helmet with custom configuration
   app.use(helmet(securityConfig.getHelmetOptions()));
-  
+
   // Enable compression for responses
   app.use(compression(securityConfig.getCompressionOptions()));
-  
+
   // Get the Express instance
   const expressApp = app.getHttpAdapter().getInstance();
-  
+
   // Trust proxy - important for rate limiting and getting real IPs
   expressApp.set('trust proxy', 1);
-  
+
   // Disable X-Powered-By
   expressApp.disable('x-powered-by');
-  
+
   // Global rate limit - 60 requests per minute
   const globalLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
@@ -63,7 +62,7 @@ async function bootstrap() {
     standardHeaders: true,
     legacyHeaders: false,
   });
-  
+
   // Auth rate limit - 5 attempts per 15 minutes
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -73,46 +72,61 @@ async function bootstrap() {
     legacyHeaders: false,
     skipSuccessfulRequests: true, // Don't count successful logins
   });
-  
+
   // Apply global limiter to all routes
   app.use(globalLimiter);
-  
+
   // Apply stricter limiter to auth routes
   app.use('/api/auth/technician/login', authLimiter);
-  app.use('/api/auth/technician/refresh', rateLimit({
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 10, // 10 refresh attempts
-    skipSuccessfulRequests: true,
-  }));
-  
+  app.use(
+    '/api/auth/technician/refresh',
+    rateLimit({
+      windowMs: 5 * 60 * 1000, // 5 minutes
+      max: 10, // 10 refresh attempts
+      skipSuccessfulRequests: true,
+    }),
+  );
+
   // Bypass for internal services
   app.use((req: any, _res: any, next: any) => {
-    const bypassTokens = ['internal-service-token-1', 'internal-service-token-2'];
+    const bypassTokens = [
+      'internal-service-token-1',
+      'internal-service-token-2',
+    ];
     const authHeader = req.headers.authorization;
-    
-    if (authHeader && bypassTokens.some(token => authHeader.includes(token))) {
+
+    if (
+      authHeader &&
+      bypassTokens.some((token) => authHeader.includes(token))
+    ) {
       // Skip rate limiting
-      req.rateLimit = { limit: 999999, remaining: 999999, resetTime: new Date() };
+      req.rateLimit = {
+        limit: 999999,
+        remaining: 999999,
+        resetTime: new Date(),
+      };
     }
     next();
   });
-  
+
   // Configure CORS with strict settings
   app.enableCors(securityConfig.getCorsOptions());
-  
+
   // Global validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-  
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
   // Add Sentry exception filter
   app.useGlobalFilters(new SentryExceptionFilter());
-  
+
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
-  
+
   console.log(`
   🚀 Clarity Pool API Running!
   ============================
@@ -130,4 +144,4 @@ async function bootstrap() {
   `);
 }
 
-bootstrap();// Force deploy debug logs: Fri Jun 27 07:22:18 PM UTC 2025
+bootstrap(); // Force deploy debug logs: Fri Jun 27 07:22:18 PM UTC 2025

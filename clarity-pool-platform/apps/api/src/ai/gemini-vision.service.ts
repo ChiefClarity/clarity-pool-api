@@ -20,8 +20,10 @@ export class GeminiVisionService {
     }
 
     try {
-      const model = this.gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      
+      const model = this.gemini.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+      });
+
       const prompt = `Analyze this pool equipment photo and identify:
       1. Equipment type (pump, filter, heater, salt system, cleaner, timer, valves, etc.)
       2. Brand/manufacturer name (if visible)
@@ -64,12 +66,12 @@ export class GeminiVisionService {
 
       const result = await model.generateContent([
         { text: prompt },
-        { 
-          inlineData: { 
-            mimeType: 'image/jpeg', 
-            data: imageData 
-          } 
-        }
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: imageData,
+          },
+        },
       ]);
 
       const response = result.response.text();
@@ -86,8 +88,10 @@ export class GeminiVisionService {
     }
 
     try {
-      const model = this.gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      
+      const model = this.gemini.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+      });
+
       const prompt = `Analyze this satellite image of a residential property and identify pool-related features:
       1. Pool shape (rectangle, oval, kidney, freeform, etc.)
       2. Estimated pool dimensions (length x width in feet)
@@ -104,12 +108,12 @@ export class GeminiVisionService {
 
       const result = await model.generateContent([
         { text: prompt },
-        { 
-          inlineData: { 
-            mimeType: 'image/jpeg', 
-            data: imageData 
-          } 
-        }
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: imageData,
+          },
+        },
       ]);
 
       return JSON.parse(result.response.text());

@@ -62,10 +62,10 @@ export class BookingService {
         address: widgetData.address.address,
         city: widgetData.address.city,
         state: widgetData.address.state,
-        zipcode: widgetData.address.zipCode,  // Map capital C to lowercase for Poolbrain
+        zipcode: widgetData.address.zipCode, // Map capital C to lowercase for Poolbrain
         GateCode: widgetData.address.gateCode,
         accessNotes: widgetData.address.accessNotes,
-        hasDogs: widgetData.address.hasDogs || 'no'
+        hasDogs: widgetData.address.hasDogs || 'no',
       });
 
       // Create customer in our database
@@ -87,7 +87,7 @@ export class BookingService {
 
       // Assign technician
       const technician = await this.assignTechnician(customer);
-      
+
       if (!technician) {
         throw new Error('No available technicians');
       }
@@ -106,11 +106,11 @@ export class BookingService {
       // Send app download link
       await this.email.sendAppDownloadLink(customer);
 
-      return { 
+      return {
         success: true,
-        customer, 
+        customer,
         session,
-        message: 'Booking created successfully'
+        message: 'Booking created successfully',
       };
     } catch (error) {
       console.log('Database not available, returning mock booking response');

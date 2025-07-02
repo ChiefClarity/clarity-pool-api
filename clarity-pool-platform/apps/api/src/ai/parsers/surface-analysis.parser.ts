@@ -3,18 +3,24 @@ import { z } from 'zod';
 
 // Define the expected structure from AI
 export const SurfaceResponseSchema = z.object({
-  material: z.enum(['plaster', 'pebble', 'tile', 'vinyl', 'fiberglass', 'unknown']).optional(),
-  condition: z.enum(['excellent', 'good', 'fair', 'poor', 'unknown']).optional(),
-  issues: z.object({
-    stains: z.enum(['none', 'light', 'moderate', 'heavy']).optional(),
-    cracks: z.enum(['none', 'minor', 'major']).optional(),
-    roughness: z.enum(['smooth', 'slightly rough', 'very rough']).optional(),
-    discoloration: z.enum(['none', 'minor', 'significant']).optional(),
-    etching: z.enum(['none', 'minor', 'moderate', 'severe']).optional(),
-    scaling: z.enum(['none', 'light', 'moderate', 'heavy']).optional(),
-    chipping: z.enum(['none', 'minor', 'moderate', 'severe']).optional(),
-    hollow_spots: z.enum(['none', 'few', 'many']).optional(),
-  }).optional(),
+  material: z
+    .enum(['plaster', 'pebble', 'tile', 'vinyl', 'fiberglass', 'unknown'])
+    .optional(),
+  condition: z
+    .enum(['excellent', 'good', 'fair', 'poor', 'unknown'])
+    .optional(),
+  issues: z
+    .object({
+      stains: z.enum(['none', 'light', 'moderate', 'heavy']).optional(),
+      cracks: z.enum(['none', 'minor', 'major']).optional(),
+      roughness: z.enum(['smooth', 'slightly rough', 'very rough']).optional(),
+      discoloration: z.enum(['none', 'minor', 'significant']).optional(),
+      etching: z.enum(['none', 'minor', 'moderate', 'severe']).optional(),
+      scaling: z.enum(['none', 'light', 'moderate', 'heavy']).optional(),
+      chipping: z.enum(['none', 'minor', 'moderate', 'severe']).optional(),
+      hollow_spots: z.enum(['none', 'few', 'many']).optional(),
+    })
+    .optional(),
   recommendations: z.array(z.string()).optional(),
   confidence: z.number().min(0).max(1).optional(),
 });
@@ -46,10 +52,10 @@ export class SurfaceAnalysisParser {
     try {
       // Clean the response
       const cleanedResponse = this.cleanAIResponse(aiResponse);
-      
+
       // Validate against schema
       const validatedResponse = this.validateResponse(cleanedResponse);
-      
+
       // Map to standardized structure
       return this.mapToAnalysisStructure(validatedResponse);
     } catch (error) {
@@ -76,7 +82,7 @@ export class SurfaceAnalysisParser {
       // Remove markdown code blocks if present
       const markdownPattern = /```(?:json)?\s*([\s\S]*?)\s*```/;
       const match = response.match(markdownPattern);
-      
+
       if (match && match[1]) {
         try {
           return JSON.parse(match[1]);
@@ -88,7 +94,7 @@ export class SurfaceAnalysisParser {
       // Try to extract JSON object from the string
       const jsonPattern = /\{[\s\S]*\}/;
       const jsonMatch = response.match(jsonPattern);
-      
+
       if (jsonMatch) {
         try {
           return JSON.parse(jsonMatch[0]);
@@ -107,11 +113,14 @@ export class SurfaceAnalysisParser {
       return SurfaceResponseSchema.parse(response);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        this.logger.warn('Validation failed, attempting to fix common issues:', error.errors);
-        
+        this.logger.warn(
+          'Validation failed, attempting to fix common issues:',
+          error.errors,
+        );
+
         // Attempt to fix common issues
         const fixed = this.attemptAutoFix(response, error);
-        
+
         // Try validation again
         try {
           return SurfaceResponseSchema.parse(fixed);
@@ -126,7 +135,7 @@ export class SurfaceAnalysisParser {
 
   private attemptAutoFix(response: any, zodError: z.ZodError): any {
     const fixed = { ...response };
-    
+
     // Ensure issues object exists
     if (!fixed.issues) {
       fixed.issues = {};
@@ -141,7 +150,7 @@ export class SurfaceAnalysisParser {
       etching: 'none',
       scaling: 'none',
       chipping: 'none',
-      hollow_spots: 'none'
+      hollow_spots: 'none',
     };
 
     for (const [key, defaultValue] of Object.entries(defaultIssues)) {
@@ -152,7 +161,9 @@ export class SurfaceAnalysisParser {
 
     // Ensure recommendations is an array
     if (!Array.isArray(fixed.recommendations)) {
-      fixed.recommendations = fixed.recommendations ? [fixed.recommendations] : [];
+      fixed.recommendations = fixed.recommendations
+        ? [fixed.recommendations]
+        : [];
     }
 
     // Normalize material and condition
@@ -169,22 +180,22 @@ export class SurfaceAnalysisParser {
 
   private normalizeMaterial(material: string): string {
     const normalized = material.toLowerCase().trim();
-    
+
     // Handle variations
     const materialMap: Record<string, string> = {
-      'plaster': 'plaster',
+      plaster: 'plaster',
       'diamond brite': 'plaster',
-      'marcite': 'plaster',
-      'pebble': 'pebble',
-      'pebbletec': 'pebble',
-      'pebblecrete': 'pebble',
-      'tile': 'tile',
-      'ceramic': 'tile',
-      'glass': 'tile',
-      'vinyl': 'vinyl',
-      'liner': 'vinyl',
-      'fiberglass': 'fiberglass',
-      'fibreglass': 'fiberglass'
+      marcite: 'plaster',
+      pebble: 'pebble',
+      pebbletec: 'pebble',
+      pebblecrete: 'pebble',
+      tile: 'tile',
+      ceramic: 'tile',
+      glass: 'tile',
+      vinyl: 'vinyl',
+      liner: 'vinyl',
+      fiberglass: 'fiberglass',
+      fibreglass: 'fiberglass',
     };
 
     for (const [key, value] of Object.entries(materialMap)) {
@@ -198,22 +209,24 @@ export class SurfaceAnalysisParser {
 
   private normalizeCondition(condition: string): string {
     const normalized = condition.toLowerCase().trim();
-    
+
     const conditionMap: Record<string, string> = {
-      'excellent': 'excellent',
+      excellent: 'excellent',
       'like new': 'excellent',
-      'good': 'good',
-      'fair': 'fair',
-      'average': 'fair',
-      'poor': 'poor',
-      'bad': 'poor',
-      'needs resurfacing': 'poor'
+      good: 'good',
+      fair: 'fair',
+      average: 'fair',
+      poor: 'poor',
+      bad: 'poor',
+      'needs resurfacing': 'poor',
     };
 
     return conditionMap[normalized] || 'unknown';
   }
 
-  private mapToAnalysisStructure(data: ValidatedSurfaceResponse): ParsedSurfaceAnalysis {
+  private mapToAnalysisStructure(
+    data: ValidatedSurfaceResponse,
+  ): ParsedSurfaceAnalysis {
     return {
       material: data.material || 'unknown',
       condition: data.condition || 'unknown',
@@ -225,10 +238,10 @@ export class SurfaceAnalysisParser {
         etching: data.issues?.etching || 'none',
         scaling: data.issues?.scaling || 'none',
         chipping: data.issues?.chipping || 'none',
-        hollow_spots: data.issues?.hollow_spots || 'none'
+        hollow_spots: data.issues?.hollow_spots || 'none',
       },
       recommendations: data.recommendations || [],
-      confidence: data.confidence || 0.85
+      confidence: data.confidence || 0.85,
     };
   }
 
@@ -244,10 +257,10 @@ export class SurfaceAnalysisParser {
         etching: 'none',
         scaling: 'none',
         chipping: 'none',
-        hollow_spots: 'none'
+        hollow_spots: 'none',
       },
       recommendations: [],
-      confidence: 0
+      confidence: 0,
     };
   }
 }

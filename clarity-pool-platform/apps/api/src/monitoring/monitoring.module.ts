@@ -11,8 +11,8 @@ import { HealthModule } from '../health/health.module';
 @Module({
   imports: [PrismaModule, HealthModule],
   controllers: [
-    RateLimitController, 
-    SentryTestController, 
+    RateLimitController,
+    SentryTestController,
     SecurityTestController,
     DatabaseMonitorController,
     MonitoringDashboardController,

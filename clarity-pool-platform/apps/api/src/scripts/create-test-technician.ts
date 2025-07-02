@@ -14,7 +14,7 @@ async function createTestTechnician() {
   try {
     // Check if test technician already exists
     const existingTech = await prisma.technician.findFirst({
-      where: { email: 'test@claritypool.com' }
+      where: { email: 'test@claritypool.com' },
     });
 
     if (existingTech) {
@@ -27,7 +27,7 @@ async function createTestTechnician() {
 
     // Create test technician
     const hashedPassword = await bcrypt.hash('test123', 10);
-    
+
     const technician = await prisma.technician.upsert({
       where: { email: 'test@claritypool.com' },
       update: {
@@ -54,7 +54,6 @@ async function createTestTechnician() {
     console.log('🔑 Password: test123');
     console.log(`🆔 ID: ${technician.id}`);
     console.log('\n🚀 You can now login with these credentials!');
-
   } catch (error) {
     console.error('❌ Failed to create test technician:', error);
     process.exit(1);

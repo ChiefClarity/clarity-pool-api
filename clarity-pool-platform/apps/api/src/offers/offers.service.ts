@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Offer } from './entities/offer.entity';
 import { AcceptOfferDto } from './dto/accept-offer.dto';
@@ -71,7 +75,7 @@ export class OffersService {
       },
     ];
 
-    floridaCustomers.forEach(customer => {
+    floridaCustomers.forEach((customer) => {
       const offer: Offer = {
         ...customer,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes from now
@@ -96,14 +100,14 @@ export class OffersService {
     } catch (error) {
       // Return mock offers
       const offers = Array.from(this.mockOffers.values())
-        .filter(offer => offer.status === 'available')
-        .filter(offer => new Date(offer.expiresAt) > new Date());
+        .filter((offer) => offer.status === 'available')
+        .filter((offer) => new Date(offer.expiresAt) > new Date());
 
       // Calculate scores and sort by score
-      const scoredOffers = offers.map(offer => {
+      const scoredOffers = offers.map((offer) => {
         const distanceScore = 1 / offer.distance;
         const ratingScore = (offer as any).rating || 4.5;
-        const score = (0.6 * distanceScore) + (0.4 * ratingScore);
+        const score = 0.6 * distanceScore + 0.4 * ratingScore;
         return { ...offer, score };
       });
 
@@ -115,7 +119,7 @@ export class OffersService {
 
   async acceptOffer(id: string, dto: AcceptOfferDto) {
     const offer = this.mockOffers.get(id);
-    
+
     if (!offer) {
       throw new NotFoundException('Offer not found');
     }
@@ -133,7 +137,7 @@ export class OffersService {
     offer.status = 'accepted';
     offer.acceptedAt = new Date(dto.acceptedAt);
     offer.technicianId = 1; // Mock technician ID
-    
+
     // Store acceptance timestamp for undo functionality
     this.acceptanceTimestamps.set(id, new Date());
 
@@ -150,7 +154,7 @@ export class OffersService {
 
   async declineOffer(id: string) {
     const offer = this.mockOffers.get(id);
-    
+
     if (!offer) {
       throw new NotFoundException('Offer not found');
     }
@@ -169,7 +173,7 @@ export class OffersService {
 
   async undoAcceptance(id: string) {
     const offer = this.mockOffers.get(id);
-    
+
     if (!offer) {
       throw new NotFoundException('Offer not found');
     }

@@ -3,19 +3,27 @@ import axios from 'axios';
 async function testRateLimits() {
   const baseURL = 'http://localhost:3000';
   const endpoints = [
-    { url: '/api/auth/technician/login', method: 'POST', limit: 5, ttl: 900, data: { email: 'test@test.com', password: 'wrong' } },
+    {
+      url: '/api/auth/technician/login',
+      method: 'POST',
+      limit: 5,
+      ttl: 900,
+      data: { email: 'test@test.com', password: 'wrong' },
+    },
     { url: '/health', method: 'GET', limit: 60, ttl: 60 },
   ];
 
   console.log('🧪 Testing Rate Limiting System\n');
 
   for (const endpoint of endpoints) {
-    console.log(`Testing ${endpoint.url} - Limit: ${endpoint.limit}/${endpoint.ttl}s`);
-    
+    console.log(
+      `Testing ${endpoint.url} - Limit: ${endpoint.limit}/${endpoint.ttl}s`,
+    );
+
     let successCount = 0;
     let rateLimitHit = false;
     let lastError = null;
-    
+
     for (let i = 0; i < endpoint.limit + 5; i++) {
       try {
         if (endpoint.method === 'POST') {
@@ -37,9 +45,11 @@ async function testRateLimits() {
         }
       }
     }
-    
+
     if (!rateLimitHit) {
-      console.log(`  ❌ Rate limit NOT triggered after ${successCount} requests!`);
+      console.log(
+        `  ❌ Rate limit NOT triggered after ${successCount} requests!`,
+      );
     } else {
       console.log(`  ✅ Rate limiting working correctly`);
     }
@@ -50,11 +60,11 @@ async function testRateLimits() {
   console.log('Testing bypass token...');
   const bypassToken = 'internal-service-token-1';
   let bypassWorked = true;
-  
+
   for (let i = 0; i < 10; i++) {
     try {
       await axios.get(baseURL + '/health', {
-        headers: { Authorization: `Bearer ${bypassToken}` }
+        headers: { Authorization: `Bearer ${bypassToken}` },
       });
     } catch (error: any) {
       if (error.response?.status === 429) {
@@ -63,8 +73,10 @@ async function testRateLimits() {
       }
     }
   }
-  
-  console.log(bypassWorked ? '✅ Bypass token working' : '❌ Bypass token failed');
+
+  console.log(
+    bypassWorked ? '✅ Bypass token working' : '❌ Bypass token failed',
+  );
   console.log('\n🎉 Rate limit testing complete!');
 }
 

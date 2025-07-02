@@ -56,7 +56,6 @@ export class OnboardingSyncService {
             syncedAt: new Date(),
           },
         });
-
       } catch (error) {
         console.error(`Failed to sync session ${session.id}:`, error);
       }

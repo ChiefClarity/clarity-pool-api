@@ -22,10 +22,10 @@ export class OnboardingService {
       console.log('Database not available, returning mock data');
       const sessions = this.mockDataService.getOnboardingSessions();
       const customers = this.mockDataService.getCustomers();
-      
-      return sessions.map(session => ({
+
+      return sessions.map((session) => ({
         ...session,
-        customer: customers.find(c => c.id === session.customerId) || null,
+        customer: customers.find((c) => c.id === session.customerId) || null,
       }));
     }
   }
@@ -45,7 +45,9 @@ export class OnboardingService {
       if (!session) {
         return null;
       }
-      const customer = session.customerId ? this.mockDataService.getCustomerById(session.customerId) : null;
+      const customer = session.customerId
+        ? this.mockDataService.getCustomerById(session.customerId)
+        : null;
       return {
         ...session,
         customer: customer || null,

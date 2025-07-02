@@ -7,7 +7,7 @@ export interface PromptVersion {
 
 export class SurfaceAnalysisPrompt {
   private static readonly CURRENT_VERSION = '1.4.0';
-  
+
   private static readonly PROMPTS: Record<string, PromptVersion> = {
     '1.4.0': {
       version: '1.4.0',
@@ -17,7 +17,7 @@ export class SurfaceAnalysisPrompt {
         'Added explicit instructions against markdown/code blocks',
         'Improved material identification guide',
         'Added confidence score to response',
-        'Clearer structure for maintenance recommendations'
+        'Clearer structure for maintenance recommendations',
       ],
       prompt: `You are an expert pool inspector analyzing a pool surface image.
 
@@ -51,7 +51,7 @@ Return this exact JSON structure with NO additional text:
   },
   "recommendations": ["array of specific maintenance suggestions"],
   "confidence": 0.95
-}`
+}`,
     },
     '1.3.0': {
       version: '1.3.0',
@@ -60,7 +60,7 @@ Return this exact JSON structure with NO additional text:
         'Enhanced waterline tile vs pool surface distinction',
         'Added critical guidance to avoid waterline tile confusion',
         'Simplified JSON response format',
-        'Added specific identification tips for common scenarios'
+        'Added specific identification tips for common scenarios',
       ],
       prompt: `You are an expert pool inspector analyzing a pool surface image.
 
@@ -90,7 +90,7 @@ Return ONLY this JSON:
     "discoloration": "none|minor|significant"
   },
   "recommendations": ["specific maintenance suggestions"]
-}`
+}`,
     },
     '1.2.0': {
       version: '1.2.0',
@@ -99,7 +99,7 @@ Return ONLY this JSON:
         'Added clarification about waterline tile vs surface',
         'Improved plaster identification criteria',
         'Added Diamond Brite as plaster variant',
-        'Structured JSON response format with specific issue fields'
+        'Structured JSON response format with specific issue fields',
       ],
       prompt: `You are an expert pool inspector analyzing a pool surface image.
 
@@ -183,7 +183,7 @@ HOLLOW SPOTS:
   - Discoloration in patches suggesting delamination
   - Areas that appear "puffy" or raised
 
-BE SPECIFIC: If you see a smooth surface with slight sparkle, it's likely Diamond Brite plaster, not tile.`
+BE SPECIFIC: If you see a smooth surface with slight sparkle, it's likely Diamond Brite plaster, not tile.`,
     },
     '1.1.0': {
       version: '1.1.0',
@@ -216,8 +216,8 @@ Identify:
 
 4. Maintenance Recommendations
 
-Return a detailed JSON analysis.`
-    }
+Return a detailed JSON analysis.`,
+    },
   };
 
   static getCurrentPrompt(): string {
@@ -236,13 +236,17 @@ Return a detailed JSON analysis.`
     return Object.keys(this.PROMPTS).sort().reverse();
   }
 
-  static getChangeLog(): Array<{ version: string; date: Date; changes: string[] }> {
-    return this.getAllVersions().map(version => {
+  static getChangeLog(): Array<{
+    version: string;
+    date: Date;
+    changes: string[];
+  }> {
+    return this.getAllVersions().map((version) => {
       const prompt = this.PROMPTS[version];
       return {
         version: prompt.version,
         date: prompt.createdAt,
-        changes: prompt.changes
+        changes: prompt.changes,
       };
     });
   }

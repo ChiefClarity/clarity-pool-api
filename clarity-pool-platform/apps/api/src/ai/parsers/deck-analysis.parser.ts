@@ -3,16 +3,29 @@ import { z } from 'zod';
 import { BaseAnalysisParser } from './base-analysis.parser';
 
 export const DeckResponseSchema = z.object({
-  material: z.enum(['pavers', 'stamped_concrete', 'concrete', 'natural_stone', 'tile', 'wood', 'composite', 'other']).optional(),
+  material: z
+    .enum([
+      'pavers',
+      'stamped_concrete',
+      'concrete',
+      'natural_stone',
+      'tile',
+      'wood',
+      'composite',
+      'other',
+    ])
+    .optional(),
   condition: z.enum(['excellent', 'good', 'fair', 'poor']).optional(),
   cleanliness: z.enum(['pristine', 'clean', 'dirty', 'filthy']).optional(),
-  issues: z.object({
-    cracks: z.boolean().optional(),
-    stains: z.boolean().optional(),
-    algae_growth: z.boolean().optional(),
-    uneven_surfaces: z.boolean().optional(),
-    drainage_issues: z.boolean().optional(),
-  }).optional(),
+  issues: z
+    .object({
+      cracks: z.boolean().optional(),
+      stains: z.boolean().optional(),
+      algae_growth: z.boolean().optional(),
+      uneven_surfaces: z.boolean().optional(),
+      drainage_issues: z.boolean().optional(),
+    })
+    .optional(),
   safety_concerns: z.array(z.string()).optional(),
   maintenance_needed: z.array(z.string()).optional(),
   recommendations: z.array(z.string()).optional(),
@@ -36,7 +49,10 @@ export interface ParsedDeckAnalysis {
 }
 
 @Injectable()
-export class DeckAnalysisParser extends BaseAnalysisParser<typeof DeckResponseSchema, ParsedDeckAnalysis> {
+export class DeckAnalysisParser extends BaseAnalysisParser<
+  typeof DeckResponseSchema,
+  ParsedDeckAnalysis
+> {
   protected readonly logger = new Logger(DeckAnalysisParser.name);
   protected readonly parserName = 'DeckAnalysis';
 
@@ -63,7 +79,9 @@ export class DeckAnalysisParser extends BaseAnalysisParser<typeof DeckResponseSc
     };
   }
 
-  protected mapToAnalysisStructure(data: z.infer<typeof DeckResponseSchema>): ParsedDeckAnalysis {
+  protected mapToAnalysisStructure(
+    data: z.infer<typeof DeckResponseSchema>,
+  ): ParsedDeckAnalysis {
     return {
       material: data.material?.replace('_', ' ') || 'unknown',
       condition: data.condition || 'unknown',

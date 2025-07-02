@@ -52,7 +52,7 @@ export class DatabaseMonitorController {
   async testSlowQuery() {
     // Simulate a slow query
     const startTime = Date.now();
-    
+
     try {
       // This query is intentionally inefficient for testing
       await this.prisma.$queryRaw`
@@ -60,9 +60,9 @@ export class DatabaseMonitorController {
         FROM generate_series(1, 1000000) AS s(i)
         WHERE i % 2 = 0
       `;
-      
+
       const duration = Date.now() - startTime;
-      
+
       return {
         message: 'Slow query test completed',
         duration: `${duration}ms`,
@@ -87,19 +87,25 @@ export class DatabaseMonitorController {
 
   private getPoolRecommendations(poolStats: any) {
     const recommendations = [];
-    
+
     if (poolStats.active >= poolStats.total * 0.8) {
-      recommendations.push('Connection pool is nearly exhausted. Consider increasing pool size.');
+      recommendations.push(
+        'Connection pool is nearly exhausted. Consider increasing pool size.',
+      );
     }
-    
+
     if (poolStats.idle === 0) {
-      recommendations.push('No idle connections available. This may cause request queuing.');
+      recommendations.push(
+        'No idle connections available. This may cause request queuing.',
+      );
     }
-    
+
     if (poolStats.total < 10) {
-      recommendations.push('Pool size is small. Consider increasing for production workloads.');
+      recommendations.push(
+        'Pool size is small. Consider increasing for production workloads.',
+      );
     }
-    
+
     return recommendations;
   }
 }

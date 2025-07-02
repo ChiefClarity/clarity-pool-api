@@ -16,7 +16,9 @@ import { PrismaModule } from '../prisma/prisma.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'clarity-dev-secret-change-in-production',
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          'clarity-dev-secret-change-in-production',
         signOptions: { expiresIn: '15m' },
       }),
       inject: [ConfigService],

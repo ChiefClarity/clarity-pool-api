@@ -9,7 +9,7 @@ export class PoolbrainService {
   constructor() {
     this.apiUrl = process.env.POOLBRAIN_API_URL || '';
     this.apiKey = process.env.POOLBRAIN_API_KEY || '';
-    
+
     if (!this.apiKey) {
       this.logger.warn('Poolbrain API key not configured - using mock mode');
     } else {
@@ -45,17 +45,18 @@ export class PoolbrainService {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(`Poolbrain API error: ${response.status} - ${JSON.stringify(result)}`);
+        throw new Error(
+          `Poolbrain API error: ${response.status} - ${JSON.stringify(result)}`,
+        );
       }
-      
+
       this.logger.log('Poolbrain customer created successfully:', result);
       return result;
-      
     } catch (error) {
       this.logger.error('Poolbrain API error:', error);
-      
+
       if (process.env.NODE_ENV === 'development') {
         this.logger.log('Falling back to mock response due to API error');
         return {
@@ -66,7 +67,7 @@ export class PoolbrainService {
           },
         };
       }
-      
+
       throw error;
     }
   }
@@ -78,7 +79,7 @@ export class PoolbrainService {
 
     try {
       this.logger.log('Updating pool details for customer:', customerId);
-      
+
       const response = await fetch(`${this.apiUrl}/update_pool_details`, {
         method: 'POST',
         headers: {
@@ -89,14 +90,15 @@ export class PoolbrainService {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(`Poolbrain API error: ${response.status} - ${JSON.stringify(result)}`);
+        throw new Error(
+          `Poolbrain API error: ${response.status} - ${JSON.stringify(result)}`,
+        );
       }
-      
+
       this.logger.log('Pool details updated successfully:', result);
       return result;
-      
     } catch (error) {
       this.logger.error('Failed to update pool details:', error);
       if (process.env.NODE_ENV === 'development') {
@@ -113,7 +115,7 @@ export class PoolbrainService {
 
     try {
       this.logger.log('Creating service record for customer:', customerId);
-      
+
       const response = await fetch(`${this.apiUrl}/create_service_record`, {
         method: 'POST',
         headers: {
@@ -124,14 +126,15 @@ export class PoolbrainService {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(`Poolbrain API error: ${response.status} - ${JSON.stringify(result)}`);
+        throw new Error(
+          `Poolbrain API error: ${response.status} - ${JSON.stringify(result)}`,
+        );
       }
-      
+
       this.logger.log('Service record created successfully:', result);
       return result;
-      
     } catch (error) {
       this.logger.error('Failed to create service record:', error);
       if (process.env.NODE_ENV === 'development') {

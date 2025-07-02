@@ -4,7 +4,9 @@ import Redis from 'ioredis';
 import { RateLimitConfig } from '../config/rate-limit.config';
 
 @Injectable()
-export class ThrottlerRedisStorage implements ThrottlerStorage, OnModuleInit, OnModuleDestroy {
+export class ThrottlerRedisStorage
+  implements ThrottlerStorage, OnModuleInit, OnModuleDestroy
+{
   private redis: Redis;
   private connected = false;
 
@@ -28,7 +30,15 @@ export class ThrottlerRedisStorage implements ThrottlerStorage, OnModuleInit, On
     }
   }
 
-  async increment(key: string, ttl: number): Promise<{ totalHits: number; timeToExpire: number; isBlocked: boolean; timeToBlockExpire: number }> {
+  async increment(
+    key: string,
+    ttl: number,
+  ): Promise<{
+    totalHits: number;
+    timeToExpire: number;
+    isBlocked: boolean;
+    timeToBlockExpire: number;
+  }> {
     if (!this.connected) {
       // Fallback to memory storage
       return this.memoryIncrement(key, ttl);
@@ -38,13 +48,18 @@ export class ThrottlerRedisStorage implements ThrottlerStorage, OnModuleInit, On
     multi.incr(key);
     multi.expire(key, ttl);
     multi.ttl(key);
-    
+
     const results = await multi.exec();
-    
+
     if (!results || results.length < 3) {
-      return { totalHits: 1, timeToExpire: ttl, isBlocked: false, timeToBlockExpire: 0 };
+      return {
+        totalHits: 1,
+        timeToExpire: ttl,
+        isBlocked: false,
+        timeToBlockExpire: 0,
+      };
     }
-    
+
     return {
       totalHits: results[0][1] as number,
       timeToExpire: Math.max(0, results[2][1] as number),
@@ -55,11 +70,11 @@ export class ThrottlerRedisStorage implements ThrottlerStorage, OnModuleInit, On
 
   // Memory fallback implementation
   private memoryStorage = new Map<string, { count: number; expires: number }>();
-  
+
   private memoryIncrement(key: string, ttl: number) {
     const now = Date.now();
     const expires = now + ttl * 1000;
-    
+
     const existing = this.memoryStorage.get(key);
     if (existing && existing.expires > now) {
       existing.count++;
@@ -70,8 +85,13 @@ export class ThrottlerRedisStorage implements ThrottlerStorage, OnModuleInit, On
         timeToBlockExpire: 0,
       };
     }
-    
+
     this.memoryStorage.set(key, { count: 1, expires });
-    return { totalHits: 1, timeToExpire: ttl, isBlocked: false, timeToBlockExpire: 0 };
+    return {
+      totalHits: 1,
+      timeToExpire: ttl,
+      isBlocked: false,
+      timeToBlockExpire: 0,
+    };
   }
 }

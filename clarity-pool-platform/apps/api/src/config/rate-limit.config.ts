@@ -14,16 +14,16 @@ export class RateLimitConfig {
     return {
       // Authentication endpoints - strict
       auth: { ttl: 900, limit: 5 }, // 5 attempts per 15 minutes
-      
+
       // General API - moderate
       api: { ttl: 60, limit: 60 }, // 60 requests per minute
-      
+
       // Read operations - lenient
       read: { ttl: 60, limit: 120 }, // 120 requests per minute
-      
+
       // Write operations - strict
       write: { ttl: 60, limit: 30 }, // 30 requests per minute
-      
+
       // File uploads - very strict
       upload: { ttl: 3600, limit: 10 }, // 10 uploads per hour
     };

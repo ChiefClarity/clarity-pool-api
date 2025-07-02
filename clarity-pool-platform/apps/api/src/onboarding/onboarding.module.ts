@@ -11,8 +11,8 @@ import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
-    PoolbrainModule, 
-    PrismaModule, 
+    PoolbrainModule,
+    PrismaModule,
     AuthModule,
     AIModule,
     MulterModule.register({

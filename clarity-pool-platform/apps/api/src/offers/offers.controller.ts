@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { OffersService } from './offers.service';
 import { AcceptOfferDto } from './dto/accept-offer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,14 +29,16 @@ export class OffersController {
     const longitude = lng ? parseFloat(lng) : undefined;
     const searchRadius = radius ? parseFloat(radius) : 25; // Default 25 miles
 
-    return this.offersService.getTechnicianOffers(technicianId, latitude, longitude, searchRadius);
+    return this.offersService.getTechnicianOffers(
+      technicianId,
+      latitude,
+      longitude,
+      searchRadius,
+    );
   }
 
   @Post(':id/accept')
-  async acceptOffer(
-    @Param('id') id: string,
-    @Body() dto: AcceptOfferDto,
-  ) {
+  async acceptOffer(@Param('id') id: string, @Body() dto: AcceptOfferDto) {
     return this.offersService.acceptOffer(id, dto);
   }
 

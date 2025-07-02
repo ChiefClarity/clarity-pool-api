@@ -1,14 +1,14 @@
-import { 
-  Controller, 
-  Post, 
-  Get, 
-  Param, 
-  Body, 
-  UseGuards, 
-  UploadedFile, 
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  UseGuards,
+  UploadedFile,
   UseInterceptors,
   NotFoundException,
-  BadRequestException
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,7 +29,8 @@ export class AIAnalysisController {
     return {
       success: true,
       analysisId: analysis.id,
-      message: 'Analysis complete. CSM review required before customer delivery.',
+      message:
+        'Analysis complete. CSM review required before customer delivery.',
     };
   }
 
@@ -46,11 +47,11 @@ export class AIAnalysisController {
         },
       },
     });
-    
+
     if (!analysis) {
       throw new NotFoundException('Analysis not found');
     }
-    
+
     return analysis;
   }
 
@@ -67,9 +68,9 @@ export class AIAnalysisController {
     const analysis = await this.aiService.analyzeEquipmentPhoto(
       sessionId,
       '', // Empty string instead of null for photoUrl
-      photo.buffer
+      photo.buffer,
     );
-    
+
     return {
       success: true,
       analysis,
@@ -113,10 +114,7 @@ export class AIAnalysisController {
   }
 
   @Post('analysis/:id/csm-notes')
-  async addCsmNotes(
-    @Param('id') id: string,
-    @Body('notes') notes: string,
-  ) {
+  async addCsmNotes(@Param('id') id: string, @Body('notes') notes: string) {
     const analysis = await this.prisma.aIAnalysis.update({
       where: { id: parseInt(id) },
       data: {
@@ -141,23 +139,25 @@ export class AIAnalysisController {
 
   @Get('stats')
   async getAIStats() {
-    const [totalAnalyses, pendingApproval, averageProcessingTime] = await Promise.all([
-      this.prisma.aIAnalysis.count(),
-      this.prisma.aIAnalysis.count({
-        where: { approvedByCsm: false },
-      }),
-      // Calculate average processing time
-      this.prisma.$queryRaw`
+    const [totalAnalyses, pendingApproval, averageProcessingTime] =
+      await Promise.all([
+        this.prisma.aIAnalysis.count(),
+        this.prisma.aIAnalysis.count({
+          where: { approvedByCsm: false },
+        }),
+        // Calculate average processing time
+        this.prisma.$queryRaw`
         SELECT AVG(EXTRACT(EPOCH FROM ("analyzedAt" - "createdAt"))) as avg_seconds
         FROM "AIAnalysis"
         WHERE "analyzedAt" IS NOT NULL
       `,
-    ]);
+      ]);
 
     return {
       totalAnalyses,
       pendingApproval,
-      averageProcessingTime: (averageProcessingTime as any)[0]?.avg_seconds || 0,
+      averageProcessingTime:
+        (averageProcessingTime as any)[0]?.avg_seconds || 0,
       aiServicesStatus: {
         gemini: !!process.env.GEMINI_API_KEY,
         claude: !!process.env.ANTHROPIC_API_KEY,

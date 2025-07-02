@@ -13,10 +13,10 @@ export abstract class BaseAnalysisParser<TSchema extends z.ZodSchema, TResult> {
     try {
       // Clean the response
       const cleanedResponse = this.cleanAIResponse(aiResponse);
-      
+
       // Validate against schema
       const validatedResponse = this.validateResponse(cleanedResponse);
-      
+
       // Map to standardized structure
       return this.mapToAnalysisStructure(validatedResponse);
     } catch (error) {
@@ -43,7 +43,7 @@ export abstract class BaseAnalysisParser<TSchema extends z.ZodSchema, TResult> {
       // Remove markdown code blocks if present
       const markdownPattern = /```(?:json)?\s*([\s\S]*?)\s*```/;
       const match = response.match(markdownPattern);
-      
+
       if (match && match[1]) {
         try {
           return JSON.parse(match[1]);
@@ -55,7 +55,7 @@ export abstract class BaseAnalysisParser<TSchema extends z.ZodSchema, TResult> {
       // Try to extract JSON object from the string
       const jsonPattern = /\{[\s\S]*\}/;
       const jsonMatch = response.match(jsonPattern);
-      
+
       if (jsonMatch) {
         try {
           return JSON.parse(jsonMatch[0]);

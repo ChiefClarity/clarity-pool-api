@@ -5,9 +5,9 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Creating REAL test technician in database...');
-  
+
   const hashedPassword = await bcrypt.hash('test123', 10);
-  
+
   try {
     const technician = await prisma.technician.upsert({
       where: { email: 'test@claritypool.com' },
@@ -24,17 +24,16 @@ async function main() {
         active: true,
       },
     });
-    
+
     console.log('✅ Real technician created in database:', {
       id: technician.id,
       email: technician.email,
-      name: technician.name
+      name: technician.name,
     });
-    
+
     // Verify it saved
     const count = await prisma.technician.count();
     console.log(`Total technicians in database: ${count}`);
-    
   } catch (error) {
     console.error('Error:', error);
   }

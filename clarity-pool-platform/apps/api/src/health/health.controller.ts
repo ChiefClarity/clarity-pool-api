@@ -22,7 +22,7 @@ export class HealthController {
   @Get('live')
   live() {
     // Kubernetes liveness probe - is the service running?
-    return { 
+    return {
       status: 'live',
       timestamp: new Date().toISOString(),
     };
@@ -34,7 +34,7 @@ export class HealthController {
     try {
       const health = await this.healthCheckService.getHealthStatus();
       const isReady = health.status !== 'unhealthy';
-      
+
       return {
         status: isReady ? 'ready' : 'not_ready',
         timestamp: new Date().toISOString(),
@@ -54,12 +54,11 @@ export class HealthController {
     // Kubernetes startup probe - for slow-starting containers
     const uptime = this.healthCheckService.getUptime();
     const minimumUptime = 30000; // 30 seconds
-    
+
     return {
       status: uptime > minimumUptime ? 'started' : 'starting',
       uptime: Math.floor(uptime / 1000),
       timestamp: new Date().toISOString(),
     };
   }
-
-} 
+}

@@ -56,8 +56,8 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
   ],
   controllers: [AppController],
   providers: [
-    AppService, 
-    SentryConfig, 
+    AppService,
+    SentryConfig,
     SecurityConfig,
     {
       provide: APP_FILTER,
@@ -67,8 +67,6 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(SecurityMiddleware)
-      .forRoutes('*'); // Apply to all routes
+    consumer.apply(SecurityMiddleware).forRoutes('*'); // Apply to all routes
   }
 }

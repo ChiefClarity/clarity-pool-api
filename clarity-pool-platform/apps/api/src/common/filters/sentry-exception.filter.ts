@@ -26,10 +26,12 @@ export class SentryExceptionFilter implements ExceptionFilter {
           endpoint: request.url,
           method: request.method,
         },
-        user: request.user ? {
-          id: request.user.id,
-          email: request.user.email,
-        } : undefined,
+        user: request.user
+          ? {
+              id: request.user.id,
+              email: request.user.email,
+            }
+          : undefined,
       });
     }
 
@@ -37,9 +39,10 @@ export class SentryExceptionFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: exception instanceof HttpException 
-        ? exception.message 
-        : 'Internal server error',
+      message:
+        exception instanceof HttpException
+          ? exception.message
+          : 'Internal server error',
     };
 
     response.status(status).json(errorResponse);

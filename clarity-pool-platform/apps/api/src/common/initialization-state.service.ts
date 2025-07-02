@@ -5,7 +5,7 @@ export enum ServiceState {
   PENDING = 'pending',
   INITIALIZING = 'initializing',
   READY = 'ready',
-  ERROR = 'error'
+  ERROR = 'error',
 }
 
 export interface ServiceStatus {
@@ -24,10 +24,10 @@ export class InitializationStateService extends EventEmitter {
 
   registerService(serviceName: string): void {
     this.logger.log(`Registering service: ${serviceName}`);
-    
+
     this.serviceStates.set(serviceName, {
       name: serviceName,
-      state: ServiceState.PENDING
+      state: ServiceState.PENDING,
     });
 
     const promise = new Promise<void>((resolve, reject) => {
@@ -53,7 +53,7 @@ export class InitializationStateService extends EventEmitter {
       status.state = ServiceState.READY;
       this.logger.log(`✅ Service ${serviceName} is ready`);
       this.emit('service-ready', status);
-      
+
       const resolver = this.readyResolvers.get(serviceName);
       if (resolver) {
         resolver();
@@ -68,7 +68,7 @@ export class InitializationStateService extends EventEmitter {
       status.error = error;
       this.logger.error(`❌ Service ${serviceName} failed: ${error}`);
       this.emit('service-error', status);
-      
+
       const rejecter = this.readyRejecters.get(serviceName);
       if (rejecter) {
         rejecter(new Error(error));
@@ -76,14 +76,25 @@ export class InitializationStateService extends EventEmitter {
     }
   }
 
-  async waitForService(serviceName: string, timeoutMs: number = 10000): Promise<void> {
+  async waitForService(
+    serviceName: string,
+    timeoutMs: number = 10000,
+  ): Promise<void> {
     const promise = this.readyPromises.get(serviceName);
     if (!promise) {
       throw new Error(`Service ${serviceName} is not registered`);
     }
 
     const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error(`Service ${serviceName} initialization timed out after ${timeoutMs}ms`)), timeoutMs);
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Service ${serviceName} initialization timed out after ${timeoutMs}ms`,
+            ),
+          ),
+        timeoutMs,
+      );
     });
 
     try {

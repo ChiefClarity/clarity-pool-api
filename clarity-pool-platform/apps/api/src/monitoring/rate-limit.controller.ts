@@ -9,8 +9,8 @@ export class RateLimitController {
   @Get('violations')
   async getViolations(@Query('hours') hours = 24) {
     // Return violations from last N hours
-    const cutoff = Date.now() - (hours * 60 * 60 * 1000);
-    return this.violations.filter(v => v.timestamp > cutoff);
+    const cutoff = Date.now() - hours * 60 * 60 * 1000;
+    return this.violations.filter((v) => v.timestamp > cutoff);
   }
 
   @Get('stats')
@@ -20,12 +20,12 @@ export class RateLimitController {
       limits: {
         global: '60 requests per minute',
         login: '5 attempts per 15 minutes',
-        refresh: '10 attempts per 5 minutes'
+        refresh: '10 attempts per 5 minutes',
       },
       bypassTokens: ['internal-service-token-1', 'internal-service-token-2'],
       totalViolations: this.violations.length,
       recentViolations: this.violations.filter(
-        v => v.timestamp > Date.now() - 3600000
+        (v) => v.timestamp > Date.now() - 3600000,
       ).length,
     };
   }
@@ -40,7 +40,7 @@ export class RateLimitController {
   addViolation(violation: any) {
     this.violations.push({
       ...violation,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     // Keep only last 1000 violations
     if (this.violations.length > 1000) {

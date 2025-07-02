@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
-  
+
   try {
     // Create a test technician with ID 1
     const technician = await prisma.technician.upsert({
@@ -19,7 +19,7 @@ async function main() {
       },
     });
     console.log('Created technician:', technician);
-    
+
     // Create a test customer
     const customer = await prisma.customer.create({
       data: {
@@ -35,7 +35,7 @@ async function main() {
       },
     });
     console.log('Created customer:', customer);
-    
+
     // Create an onboarding session
     const session = await prisma.onboardingSession.create({
       data: {
@@ -46,7 +46,7 @@ async function main() {
       },
     });
     console.log('Created session:', session);
-    
+
     console.log('Seeding completed!');
   } catch (error) {
     console.error('Error seeding database:', error);

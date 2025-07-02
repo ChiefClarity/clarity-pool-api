@@ -58,7 +58,8 @@ export class DatabaseMonitorService {
 
     // Track query type
     const queryType = this.getQueryType(query);
-    this.queryCountByType[queryType] = (this.queryCountByType[queryType] || 0) + 1;
+    this.queryCountByType[queryType] =
+      (this.queryCountByType[queryType] || 0) + 1;
 
     // Log slow queries
     if (duration > this.slowQueryThreshold) {
@@ -85,16 +86,17 @@ export class DatabaseMonitorService {
   getStats(): DatabaseStats {
     const now = Date.now();
     const recentQueries = this.queries.filter(
-      q => now - q.timestamp.getTime() < 5 * 60 * 1000 // Last 5 minutes
+      (q) => now - q.timestamp.getTime() < 5 * 60 * 1000, // Last 5 minutes
     );
 
     const totalQueries = recentQueries.length;
-    const averageQueryTime = totalQueries > 0
-      ? recentQueries.reduce((sum, q) => sum + q.duration, 0) / totalQueries
-      : 0;
+    const averageQueryTime =
+      totalQueries > 0
+        ? recentQueries.reduce((sum, q) => sum + q.duration, 0) / totalQueries
+        : 0;
 
     const slowQueries = recentQueries
-      .filter(q => q.duration > this.slowQueryThreshold)
+      .filter((q) => q.duration > this.slowQueryThreshold)
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 10); // Top 10 slow queries
 
@@ -110,7 +112,7 @@ export class DatabaseMonitorService {
 
   getSlowQueries(limit = 20): QueryMetric[] {
     return this.queries
-      .filter(q => q.duration > this.slowQueryThreshold)
+      .filter((q) => q.duration > this.slowQueryThreshold)
       .sort((a, b) => b.duration - a.duration)
       .slice(0, limit);
   }
@@ -133,17 +135,14 @@ export class DatabaseMonitorService {
 
   private sanitizeQuery(query: string): string {
     // Remove extra whitespace and normalize
-    return query
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 500); // Limit length
+    return query.replace(/\s+/g, ' ').trim().substring(0, 500); // Limit length
   }
 
   private sanitizeParams(params?: any[]): any[] | undefined {
     if (!params) return undefined;
-    
+
     // Mask sensitive data
-    return params.map(param => {
+    return params.map((param) => {
       if (typeof param === 'string' && param.length > 50) {
         return '[TRUNCATED]';
       }
@@ -153,7 +152,7 @@ export class DatabaseMonitorService {
 
   private getQueryType(query: string): string {
     const normalized = query.toUpperCase().trim();
-    
+
     if (normalized.startsWith('SELECT')) return 'SELECT';
     if (normalized.startsWith('INSERT')) return 'INSERT';
     if (normalized.startsWith('UPDATE')) return 'UPDATE';
@@ -161,7 +160,7 @@ export class DatabaseMonitorService {
     if (normalized.startsWith('BEGIN')) return 'TRANSACTION';
     if (normalized.startsWith('COMMIT')) return 'TRANSACTION';
     if (normalized.startsWith('ROLLBACK')) return 'TRANSACTION';
-    
+
     return 'OTHER';
   }
 
@@ -185,8 +184,14 @@ export class DatabaseMonitorService {
       { query: 'SELECT * FROM technicians WHERE id = $1', duration: 50 },
       { query: 'SELECT * FROM offers JOIN technicians ON ...', duration: 150 },
       { query: 'INSERT INTO audit_logs ...', duration: 30 },
-      { query: 'UPDATE technicians SET last_login = NOW() WHERE id = $1', duration: 80 },
-      { query: 'SELECT COUNT(*) FROM offers WHERE status = $1', duration: 2500 }, // Slow query
+      {
+        query: 'UPDATE technicians SET last_login = NOW() WHERE id = $1',
+        duration: 80,
+      },
+      {
+        query: 'SELECT COUNT(*) FROM offers WHERE status = $1',
+        duration: 2500,
+      }, // Slow query
     ];
 
     for (const test of testQueries) {
@@ -204,7 +209,7 @@ export class DatabaseMonitorService {
 
     for (const state of poolStates) {
       this.updateConnectionPoolStats(state.active, state.idle, state.total);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     results.connectionPoolTest = poolStates;

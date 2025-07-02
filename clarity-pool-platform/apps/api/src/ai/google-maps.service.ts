@@ -34,7 +34,10 @@ export class GoogleMapsService {
       const location = geocodeResult.data.results[0].geometry.location;
 
       // Generate satellite image URL
-      const satelliteUrl = this.generateSatelliteUrl(location.lat, location.lng);
+      const satelliteUrl = this.generateSatelliteUrl(
+        location.lat,
+        location.lng,
+      );
 
       // Fetch the satellite image
       const imageResponse = await fetch(satelliteUrl);
@@ -65,7 +68,10 @@ export class GoogleMapsService {
     return `https://maps.googleapis.com/maps/api/staticmap?${params}`;
   }
 
-  async getDirections(technicianLocation: { lat: number; lng: number }, customerAddress: string) {
+  async getDirections(
+    technicianLocation: { lat: number; lng: number },
+    customerAddress: string,
+  ) {
     if (!this.apiKey) {
       throw new Error('Google Maps API key not configured');
     }
@@ -92,7 +98,7 @@ export class GoogleMapsService {
         duration: leg.duration,
         startAddress: leg.start_address,
         endAddress: leg.end_address,
-        steps: leg.steps.map(step => ({
+        steps: leg.steps.map((step) => ({
           instruction: step.html_instructions,
           distance: step.distance,
           duration: step.duration,

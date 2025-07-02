@@ -7,31 +7,33 @@ export class SecurityConfig {
 
   getHelmetOptions() {
     const isDevelopment = this.configService.get('NODE_ENV') === 'development';
-    
+
     return {
       // Content Security Policy - Prevent XSS
-      contentSecurityPolicy: isDevelopment ? false : {
-        useDefaults: true,
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for Swagger
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'https://*.sentry.io'], // Allow Sentry
-          fontSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          mediaSrc: ["'self'"],
-          frameSrc: ["'none'"],
-        },
-      },
-      
+      contentSecurityPolicy: isDevelopment
+        ? false
+        : {
+            useDefaults: true,
+            directives: {
+              defaultSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for Swagger
+              scriptSrc: ["'self'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'", 'https://*.sentry.io'], // Allow Sentry
+              fontSrc: ["'self'"],
+              objectSrc: ["'none'"],
+              mediaSrc: ["'self'"],
+              frameSrc: ["'none'"],
+            },
+          },
+
       // Strict Transport Security - Force HTTPS
       hsts: {
         maxAge: 31536000, // 1 year
         includeSubDomains: true,
         preload: true,
       },
-      
+
       // Other security headers
       crossOriginEmbedderPolicy: !isDevelopment,
       crossOriginOpenerPolicy: { policy: 'same-origin' as const },
@@ -48,52 +50,59 @@ export class SecurityConfig {
   }
 
   getCorsOptions() {
-    const allowedOrigins = this.configService.get('ALLOWED_ORIGINS', '').split(',').filter(Boolean);
-    
+    const allowedOrigins = this.configService
+      .get('ALLOWED_ORIGINS', '')
+      .split(',')
+      .filter(Boolean);
+
     // Default allowed origins
     const defaultOrigins = [
       // Development
       'http://localhost:3000',
-      'http://localhost:3001', 
+      'http://localhost:3001',
       'http://localhost:8081',
       'http://localhost:8080',
       'http://localhost:19006', // Expo web
-      
+
       // Production (current)
       'https://www.getclarity.services',
       'https://getclarity.services',
-      
+
       // Future subdomains (when created)
       // 'https://api.getclarity.services',
       // 'https://tech.getclarity.services',
       // 'https://app.getclarity.services',
     ];
-    
+
     const allOrigins = [...defaultOrigins, ...allowedOrigins];
-    
+
     return {
       origin: (origin: string | undefined, callback: Function) => {
         // Allow requests with no origin (mobile apps, Postman)
         if (!origin) {
           return callback(null, true);
         }
-        
+
         // For development, allow any localhost
         if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
           return callback(null, true);
         }
-        
+
         // Allow Replit domains for development
-        if (origin.includes('.replit.dev') || origin.includes('.repl.co') || origin.includes('.replit.app')) {
+        if (
+          origin.includes('.replit.dev') ||
+          origin.includes('.repl.co') ||
+          origin.includes('.replit.app')
+        ) {
           console.log(`✅ Allowing Replit origin: ${origin}`);
           return callback(null, true);
         }
-        
+
         // Check allowed origins
         if (allOrigins.includes(origin)) {
           return callback(null, true);
         }
-        
+
         // Log rejected origin for debugging
         console.warn(`CORS rejected origin: ${origin}`);
         return callback(new Error('Not allowed by CORS'));

@@ -20,8 +20,16 @@ export class EquipmentSearchService {
       return null;
     }
 
+    if (!this.apiKey) {
+      this.logger.warn('API key not configured for Custom Search');
+      return null;
+    }
+
     try {
       const query = `${brand} ${model} pool equipment specifications`;
+      
+      this.logger.log(`Searching for: ${query}`);
+      this.logger.log(`Using Search Engine ID: ${this.searchEngineId}`);
 
       const response = await axios.get(
         'https://www.googleapis.com/customsearch/v1',
@@ -41,6 +49,13 @@ export class EquipmentSearchService {
         model,
       );
     } catch (error: any) {
+      // Log more details about the error
+      if (error.response) {
+        this.logger.error(`Search API Error ${error.response.status}: ${error.response.data?.error?.message || error.message}`);
+        if (error.response.status === 403) {
+          this.logger.error('403 Error - Check that Custom Search API is enabled for your API key in Google Cloud Console');
+        }
+      }
       this.logger.warn(`Search failed for ${brand} ${model}:`, error.message);
       return null;
     }

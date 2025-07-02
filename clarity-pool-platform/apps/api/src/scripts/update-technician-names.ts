@@ -17,7 +17,7 @@ async function updateTechnicianNames() {
       data: {
         firstName: 'Test',
         lastName: 'Technician',
-      }
+      },
     });
 
     console.log('✅ Technician updated successfully!');
@@ -26,9 +26,8 @@ async function updateTechnicianNames() {
       email: updated.email,
       firstName: updated.firstName,
       lastName: updated.lastName,
-      name: updated.name
+      name: updated.name,
     });
-
   } catch (error) {
     console.error('❌ Failed to update technician:', error);
     process.exit(1);

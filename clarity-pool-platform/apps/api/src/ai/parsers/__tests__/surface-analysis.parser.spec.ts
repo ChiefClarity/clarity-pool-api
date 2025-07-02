@@ -21,10 +21,10 @@ describe('SurfaceAnalysisParser', () => {
           stains: 'light',
           cracks: 'none',
           roughness: 'smooth',
-          discoloration: 'minor'
+          discoloration: 'minor',
         },
         recommendations: ['Regular brushing recommended'],
-        confidence: 0.9
+        confidence: 0.9,
       };
 
       const result = parser.parse(aiResponse);
@@ -60,7 +60,7 @@ describe('SurfaceAnalysisParser', () => {
     it('should handle missing fields with defaults', () => {
       const aiResponse = {
         material: 'tile',
-        condition: 'excellent'
+        condition: 'excellent',
         // missing issues and recommendations
       };
 
@@ -78,7 +78,7 @@ describe('SurfaceAnalysisParser', () => {
         { input: 'Diamond Brite', expected: 'plaster' },
         { input: 'PebbleTec', expected: 'pebble' },
         { input: 'ceramic tile', expected: 'tile' },
-        { input: 'vinyl liner', expected: 'vinyl' }
+        { input: 'vinyl liner', expected: 'vinyl' },
       ];
 
       variations.forEach(({ input, expected }) => {

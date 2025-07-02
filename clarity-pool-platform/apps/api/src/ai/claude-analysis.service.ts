@@ -82,7 +82,10 @@ export class ClaudeAnalysisService {
     }
   }
 
-  async transcribeAndAnalyzeVoiceNote(audioTranscript: string, duration: number) {
+  async transcribeAndAnalyzeVoiceNote(
+    audioTranscript: string,
+    duration: number,
+  ) {
     if (!this.claude) {
       throw new Error('Claude API not configured');
     }
@@ -130,7 +133,12 @@ export class ClaudeAnalysisService {
     }
   }
 
-  async generateComprehensiveReport(sessionData: any, equipmentAnalysis: any, voiceAnalysis: any, satelliteData: any) {
+  async generateComprehensiveReport(
+    sessionData: any,
+    equipmentAnalysis: any,
+    voiceAnalysis: any,
+    satelliteData: any,
+  ) {
     if (!this.claude) {
       throw new Error('Claude API not configured');
     }

@@ -7,7 +7,7 @@ export class SentryTestController {
   testError() {
     throw new Error('Test error for Sentry - this is intentional!');
   }
-  
+
   @Post('test-logged-error')
   testLoggedError() {
     try {

@@ -3,25 +3,35 @@ import { z } from 'zod';
 import { BaseAnalysisParser } from './base-analysis.parser';
 
 export const EnvironmentResponseSchema = z.object({
-  vegetation: z.object({
-    trees_present: z.boolean().optional(),
-    tree_count: z.number().optional(),
-    tree_types: z.array(z.string()).optional(),
-    proximity_to_pool: z.enum(['close', 'moderate', 'far']).optional(),
-    overhang_risk: z.enum(['none', 'low', 'medium', 'high']).optional(),
-    debris_risk: z.enum(['low', 'medium', 'high']).optional(),
-  }).optional(),
-  ground_conditions: z.object({
-    surface_type: z.enum(['grass', 'dirt', 'both', 'concrete', 'mulch']).optional(),
-    drainage: z.enum(['good', 'fair', 'poor']).optional(),
-    erosion_risk: z.enum(['none', 'low', 'medium', 'high']).optional(),
-    sprinklers_present: z.boolean().optional(),
-  }).optional(),
-  environmental_factors: z.object({
-    sun_exposure: z.enum(['full_sun', 'partial_shade', 'heavy_shade']).optional(),
-    wind_exposure: z.enum(['low', 'moderate', 'high']).optional(),
-    privacy_level: z.enum(['open', 'partial', 'private']).optional(),
-  }).optional(),
+  vegetation: z
+    .object({
+      trees_present: z.boolean().optional(),
+      tree_count: z.number().optional(),
+      tree_types: z.array(z.string()).optional(),
+      proximity_to_pool: z.enum(['close', 'moderate', 'far']).optional(),
+      overhang_risk: z.enum(['none', 'low', 'medium', 'high']).optional(),
+      debris_risk: z.enum(['low', 'medium', 'high']).optional(),
+    })
+    .optional(),
+  ground_conditions: z
+    .object({
+      surface_type: z
+        .enum(['grass', 'dirt', 'both', 'concrete', 'mulch'])
+        .optional(),
+      drainage: z.enum(['good', 'fair', 'poor']).optional(),
+      erosion_risk: z.enum(['none', 'low', 'medium', 'high']).optional(),
+      sprinklers_present: z.boolean().optional(),
+    })
+    .optional(),
+  environmental_factors: z
+    .object({
+      sun_exposure: z
+        .enum(['full_sun', 'partial_shade', 'heavy_shade'])
+        .optional(),
+      wind_exposure: z.enum(['low', 'moderate', 'high']).optional(),
+      privacy_level: z.enum(['open', 'partial', 'private']).optional(),
+    })
+    .optional(),
   maintenance_challenges: z.array(z.string()).optional(),
   recommendations: z.array(z.string()).optional(),
 });
@@ -52,7 +62,10 @@ export interface ParsedEnvironmentAnalysis {
 }
 
 @Injectable()
-export class EnvironmentAnalysisParser extends BaseAnalysisParser<typeof EnvironmentResponseSchema, ParsedEnvironmentAnalysis> {
+export class EnvironmentAnalysisParser extends BaseAnalysisParser<
+  typeof EnvironmentResponseSchema,
+  ParsedEnvironmentAnalysis
+> {
   protected readonly logger = new Logger(EnvironmentAnalysisParser.name);
   protected readonly parserName = 'EnvironmentAnalysis';
 
@@ -87,7 +100,9 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<typeof Environ
     };
   }
 
-  protected mapToAnalysisStructure(data: z.infer<typeof EnvironmentResponseSchema>): ParsedEnvironmentAnalysis {
+  protected mapToAnalysisStructure(
+    data: z.infer<typeof EnvironmentResponseSchema>,
+  ): ParsedEnvironmentAnalysis {
     return {
       vegetation: {
         treesPresent: data.vegetation?.trees_present || false,
@@ -104,7 +119,9 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<typeof Environ
         sprinklersPresent: data.ground_conditions?.sprinklers_present || false,
       },
       environmentalFactors: {
-        sunExposure: data.environmental_factors?.sun_exposure?.replace('_', ' ') || 'full sun',
+        sunExposure:
+          data.environmental_factors?.sun_exposure?.replace('_', ' ') ||
+          'full sun',
         windExposure: data.environmental_factors?.wind_exposure || 'moderate',
         privacyLevel: data.environmental_factors?.privacy_level || 'partial',
       },

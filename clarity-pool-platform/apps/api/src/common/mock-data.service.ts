@@ -207,11 +207,11 @@ export class MockDataService {
   }
 
   getCustomerById(id: number) {
-    return this.mockCustomers.find(c => c.id === id);
+    return this.mockCustomers.find((c) => c.id === id);
   }
 
   getCustomerByEmail(email: string) {
-    return this.mockCustomers.find(c => c.email === email);
+    return this.mockCustomers.find((c) => c.email === email);
   }
 
   getOffers() {
@@ -219,11 +219,11 @@ export class MockDataService {
   }
 
   getOfferById(id: number) {
-    return this.mockOffers.find(o => o.id === id);
+    return this.mockOffers.find((o) => o.id === id);
   }
 
   getOffersByCustomerId(customerId: number) {
-    return this.mockOffers.filter(o => o.customerId === customerId);
+    return this.mockOffers.filter((o) => o.customerId === customerId);
   }
 
   getOnboardingSessions() {
@@ -231,6 +231,6 @@ export class MockDataService {
   }
 
   getOnboardingSessionById(sessionId: string) {
-    return this.mockOnboardingSessions.find(s => s.sessionId === sessionId);
+    return this.mockOnboardingSessions.find((s) => s.sessionId === sessionId);
   }
 }

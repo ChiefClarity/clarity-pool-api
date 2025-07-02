@@ -43,17 +43,19 @@ export class HealthCheckService {
       this.checkExternalServices(),
     ]);
 
-    const [database, memory, api, external] = checks.map(result => 
-      result.status === 'fulfilled' ? result.value : { 
-        status: 'unhealthy' as const, 
-        message: result.reason?.message || 'Check failed' 
-      }
+    const [database, memory, api, external] = checks.map((result) =>
+      result.status === 'fulfilled'
+        ? result.value
+        : {
+            status: 'unhealthy' as const,
+            message: result.reason?.message || 'Check failed',
+          },
     );
 
     // Determine overall status
-    const statuses = [database, memory, api, external].map(c => c.status);
+    const statuses = [database, memory, api, external].map((c) => c.status);
     let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    
+
     if (statuses.includes('unhealthy')) {
       overallStatus = 'unhealthy';
     } else if (statuses.includes('degraded')) {
@@ -62,7 +64,12 @@ export class HealthCheckService {
 
     // Alert on unhealthy status
     if (overallStatus === 'unhealthy') {
-      this.logger.error('System health check failed', { database, memory, api, external });
+      this.logger.error('System health check failed', {
+        database,
+        memory,
+        api,
+        external,
+      });
       Sentry.captureMessage('System health check failed', {
         level: 'error',
         extra: { database, memory, api, external },
@@ -89,16 +96,21 @@ export class HealthCheckService {
       const start = Date.now();
       await this.prisma.$queryRaw`SELECT 1`;
       const responseTime = Date.now() - start;
-      
+
       // Also check table count
-      const tableCount = await this.prisma.$queryRaw<{count: string}[]>`
+      const tableCount = await this.prisma.$queryRaw<{ count: string }[]>`
         SELECT COUNT(*) as count 
         FROM information_schema.tables 
         WHERE table_schema = 'public'
       `;
-      
+
       return {
-        status: responseTime < 100 ? 'healthy' : responseTime < 500 ? 'degraded' : 'unhealthy',
+        status:
+          responseTime < 100
+            ? 'healthy'
+            : responseTime < 500
+              ? 'degraded'
+              : 'unhealthy',
         responseTime,
         message: `Database responding in ${responseTime}ms`,
         details: {
@@ -155,11 +167,15 @@ export class HealthCheckService {
     const criticalEndpoints = [
       { name: 'Auth', path: '/api/auth/technician/login', method: 'POST' },
       { name: 'Offers', path: '/api/offers/technician/1', method: 'GET' },
-      { name: 'Onboarding', path: '/api/onboarding/sessions/technician/1', method: 'GET' },
+      {
+        name: 'Onboarding',
+        path: '/api/onboarding/sessions/technician/1',
+        method: 'GET',
+      },
     ];
 
     const results = [];
-    let allHealthy = true;
+    const allHealthy = true;
 
     // In production, you'd actually test these endpoints
     // For now, we'll simulate based on app readiness
@@ -185,7 +201,9 @@ export class HealthCheckService {
       poolbrain: this.checkPoolbrainConfig(),
     };
 
-    const healthyCount = Object.values(services).filter(s => s.status === 'healthy').length;
+    const healthyCount = Object.values(services).filter(
+      (s) => s.status === 'healthy',
+    ).length;
     const totalCount = Object.keys(services).length;
 
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
@@ -228,10 +246,13 @@ export class HealthCheckService {
   private checkPoolbrainConfig(): HealthCheckResult {
     const apiUrl = this.configService.get('POOLBRAIN_API_URL');
     const apiKey = this.configService.get('POOLBRAIN_API_KEY');
-    
+
     return {
       status: apiUrl && apiKey ? 'healthy' : 'degraded',
-      message: apiUrl && apiKey ? 'Poolbrain configured' : 'Poolbrain not fully configured',
+      message:
+        apiUrl && apiKey
+          ? 'Poolbrain configured'
+          : 'Poolbrain not fully configured',
       details: {
         hasUrl: !!apiUrl,
         hasKey: !!apiKey,

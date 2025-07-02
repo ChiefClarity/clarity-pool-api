@@ -7,7 +7,7 @@ dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 async function testDatabaseConnection() {
   console.log('🔍 Testing Database Connection...\n');
-  
+
   // Display connection info (masked)
   const dbUrl = process.env.DATABASE_URL || '';
   const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':****@');
@@ -20,20 +20,21 @@ async function testDatabaseConnection() {
 
   try {
     console.log('🔄 Attempting to connect to database...');
-    
+
     // Test connection
     const startTime = Date.now();
     await prisma.$connect();
     const connectionTime = Date.now() - startTime;
-    
+
     console.log(`✅ Connected successfully in ${connectionTime}ms\n`);
 
     // Test query
     console.log('🔄 Testing database query...');
     const queryStart = Date.now();
-    const result = await prisma.$queryRaw`SELECT current_database(), version(), now()`;
+    const result =
+      await prisma.$queryRaw`SELECT current_database(), version(), now()`;
     const queryTime = Date.now() - queryStart;
-    
+
     console.log(`✅ Query executed successfully in ${queryTime}ms`);
     console.log('📊 Database info:', result);
 
@@ -45,9 +46,9 @@ async function testDatabaseConnection() {
       WHERE table_schema = 'public' 
       ORDER BY table_name
     `;
-    
+
     console.log(`✅ Found ${(tables as any[]).length} tables:`);
-    (tables as any[]).forEach(table => {
+    (tables as any[]).forEach((table) => {
       console.log(`   - ${table.table_name}`);
     });
 
@@ -56,21 +57,20 @@ async function testDatabaseConnection() {
     const customerCount = await prisma.customer.count();
     const technicianCount = await prisma.technician.count();
     const sessionCount = await prisma.onboardingSession.count();
-    
+
     console.log('📊 Record counts:');
     console.log(`   - Customers: ${customerCount}`);
     console.log(`   - Technicians: ${technicianCount}`);
     console.log(`   - Onboarding Sessions: ${sessionCount}`);
 
     console.log('\n✅ All database tests passed!');
-    
   } catch (error) {
     console.error('\n❌ Database connection failed!');
     console.error('Error details:', error);
-    
+
     if (error instanceof Error) {
       console.error('\n🔍 Error analysis:');
-      
+
       if (error.message.includes('P1001')) {
         console.error('   - Cannot reach database server');
         console.error('   - Check if DATABASE_URL is correct');
@@ -91,7 +91,7 @@ async function testDatabaseConnection() {
         console.error('   - Check username and password');
       }
     }
-    
+
     process.exit(1);
   } finally {
     await prisma.$disconnect();

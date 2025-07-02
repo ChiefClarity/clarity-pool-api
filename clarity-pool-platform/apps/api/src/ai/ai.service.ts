@@ -982,40 +982,62 @@ Important:
     analyzedEquipment: any[],
     detectedEquipment: any[],
   ): any {
-    // Find primary equipment (pump, filter, heater, sanitizer)
-    const pump = analyzedEquipment.find((eq) => eq.equipmentType === 'pump');
-    const filter = analyzedEquipment.find(
-      (eq) => eq.equipmentType === 'filter',
-    );
-    const heater = analyzedEquipment.find(
-      (eq) => eq.equipmentType === 'heater',
-    );
-    const sanitizer = analyzedEquipment.find(
-      (eq) =>
-        eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer',
-    );
+    // Group equipment by type
+    const equipmentByType = analyzedEquipment.reduce((acc, eq) => {
+      if (eq.equipmentType && eq.equipmentType !== 'unknown') {
+        if (!acc[eq.equipmentType]) acc[eq.equipmentType] = [];
+        acc[eq.equipmentType].push(eq);
+      }
+      return acc;
+    }, {} as Record<string, any[]>);
 
-    // Use pump as base or first equipment
-    const primaryEquipment = pump || filter || analyzedEquipment[0];
+    // Helper to aggregate data from multiple detections
+    const aggregateEquipmentData = (items: any[]) => {
+      if (!items || items.length === 0) return null;
 
-    // Aggregate all maintenance needs and recommendations
-    const allMaintenanceNeeded = [
-      ...new Set(analyzedEquipment.flatMap((eq) => eq.maintenanceNeeded || [])),
-    ];
+      // Find the best data from all detections
+      const bestData = {
+        brand: items.find(i => i.brand && i.brand !== 'unknown')?.brand || items[0].brand,
+        model: items.find(i => i.model && i.model !== 'unknown')?.model || items[0].model,
+        serialNumber: items.find(i => i.serialNumber && i.serialNumber !== '')?.serialNumber || '',
+        condition: items.find(i => i.condition && i.condition !== 'unknown')?.condition || items[0].condition,
+        equipmentSubtype: items.find(i => i.equipmentSubtype && i.equipmentSubtype !== 'unknown')?.equipmentSubtype || items[0].equipmentSubtype,
+        replacementCartridge: items.find(i => i.replacementCartridge && i.replacementCartridge !== '')?.replacementCartridge || '',
+        age: items.find(i => i.age && i.age !== 'unknown')?.age || items[0].age,
+      };
 
-    const allRecommendations = [
-      ...new Set(analyzedEquipment.flatMap((eq) => eq.recommendations || [])),
-    ];
+      // Aggregate specifications
+      const specs = items.map(i => i.specifications || {});
+      const aggregatedSpecs = {
+        horsepower: specs.find(s => s.horsepower)?.horsepower || '',
+        voltage: specs.find(s => s.voltage)?.voltage || '',
+        filterSize: specs.find(s => s.filterSize)?.filterSize || '',
+        flowRate: specs.find(s => s.flowRate)?.flowRate || '',
+        capacity: specs.find(s => s.capacity)?.capacity || '',
+      };
 
-    // Determine overall condition (worst condition wins)
+      return { ...bestData, specifications: aggregatedSpecs };
+    };
+
+    // Use first equipment as base
+    const primaryEquipment = analyzedEquipment.find(eq => eq.equipmentType !== 'unknown') || analyzedEquipment[0];
+
+    // Aggregate maintenance and recommendations
+    const allMaintenanceNeeded = [...new Set(analyzedEquipment.flatMap((eq) => eq.maintenanceNeeded || []))];
+    const allRecommendations = [...new Set(analyzedEquipment.flatMap((eq) => eq.recommendations || []))];
+
+    // Determine overall condition
     const conditionPriority = ['poor', 'fair', 'good', 'excellent'];
-    const overallCondition =
-      analyzedEquipment
-        .map((eq) => eq.condition)
-        .filter(Boolean)
-        .sort(
-          (a, b) => conditionPriority.indexOf(a) - conditionPriority.indexOf(b),
-        )[0] || 'unknown';
+    const overallCondition = analyzedEquipment
+      .map((eq) => eq.condition)
+      .filter(Boolean)
+      .sort((a, b) => conditionPriority.indexOf(a) - conditionPriority.indexOf(b))[0] || 'unknown';
+
+    // Build aggregated response
+    const pumpData = aggregateEquipmentData(equipmentByType['pump']);
+    const filterData = aggregateEquipmentData(equipmentByType['filter']);
+    const heaterData = aggregateEquipmentData(equipmentByType['heater']);
+    const sanitizerData = aggregateEquipmentData(equipmentByType['chlorinator'] || equipmentByType['sanitizer']);
 
     return {
       ...primaryEquipment,
@@ -1023,56 +1045,45 @@ Important:
       overallCondition: overallCondition,
       maintenanceNeeded: allMaintenanceNeeded,
       recommendations: allRecommendations,
-      confidence: Math.max(
-        ...analyzedEquipment.map((eq) => eq.confidence || 0),
-      ),
+      confidence: Math.max(...analyzedEquipment.map((eq) => eq.confidence || 0)),
       imagesAnalyzed: analyzedEquipment.length,
 
-      // Include specific equipment if detected
-      pump: pump
-        ? {
-            brand: pump.brand,
-            model: pump.model,
-            serialNumber: pump.serialNumber,
-            horsepower: pump.specifications?.horsepower,
-            age: pump.age,
-            condition: pump.condition,
-            type: pump.equipmentSubtype || 'single-speed',
-          }
-        : null,
+      pump: pumpData ? {
+        brand: pumpData.brand,
+        model: pumpData.model,
+        serialNumber: pumpData.serialNumber,
+        horsepower: pumpData.specifications?.horsepower,
+        age: pumpData.age,
+        condition: pumpData.condition,
+        type: pumpData.equipmentSubtype || 'single-speed',
+      } : null,
 
-      filter: filter
-        ? {
-            brand: filter.brand,
-            model: filter.model,
-            serialNumber: filter.serialNumber,
-            type: filter.equipmentSubtype || 'cartridge',
-            size: filter.specifications?.filterSize,
-            condition: filter.condition,
-            replacementCartridge: filter.replacementCartridge,
-          }
-        : null,
+      filter: filterData ? {
+        brand: filterData.brand,
+        model: filterData.model,
+        serialNumber: filterData.serialNumber,
+        type: filterData.equipmentSubtype || 'cartridge',
+        size: filterData.specifications?.filterSize,
+        condition: filterData.condition,
+        replacementCartridge: filterData.replacementCartridge,
+      } : null,
 
-      heater: heater
-        ? {
-            brand: heater.brand,
-            model: heater.model,
-            serialNumber: heater.serialNumber,
-            capacity: heater.specifications?.capacity,
-            condition: heater.condition,
-            type: heater.equipmentSubtype || 'gas',
-          }
-        : null,
+      heater: heaterData ? {
+        brand: heaterData.brand,
+        model: heaterData.model,
+        serialNumber: heaterData.serialNumber,
+        capacity: heaterData.specifications?.capacity,
+        condition: heaterData.condition,
+        type: heaterData.equipmentSubtype || 'gas',
+      } : null,
 
-      sanitizer: sanitizer
-        ? {
-            brand: sanitizer.brand,
-            model: sanitizer.model,
-            serialNumber: sanitizer.serialNumber,
-            type: sanitizer.equipmentType,
-            condition: sanitizer.condition,
-          }
-        : null,
+      sanitizer: sanitizerData ? {
+        brand: sanitizerData.brand,
+        model: sanitizerData.model,
+        serialNumber: sanitizerData.serialNumber,
+        type: sanitizerData.equipmentType,
+        condition: sanitizerData.condition,
+      } : null,
     };
   }
 
@@ -1135,6 +1146,8 @@ For timer_settings, ALWAYS attempt to read and return:
   "off_time": "HH:MM AM/PM" or null if unreadable,
   "duration": calculate hours between on/off or null
 }
+
+IMPORTANT: If you can clearly see timer pins but cannot determine exact times, still return your best estimate based on pin positions.
 
 FILTER CARTRIDGE REPLACEMENT MODELS:
 If this is a filter, also determine the replacement cartridge:
