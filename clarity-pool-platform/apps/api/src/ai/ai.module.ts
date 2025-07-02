@@ -17,6 +17,7 @@ import { GoogleMapsService } from './google-maps.service';
 import { AiService } from './ai.service';
 import { GoogleCloudAuthService } from '../common/google-cloud-auth.service';
 import { InitializationStateService } from '../common/initialization-state.service';
+import { EquipmentSearchService } from './services/equipment-search.service';
 
 // Parsers
 import { SatelliteAnalysisParser } from './parsers/satellite-analysis.parser';
@@ -37,6 +38,7 @@ import { EquipmentAnalysisParser } from './parsers/equipment-analysis.parser';
     ClaudeAnalysisService,
     GoogleMapsService,
     AiService,
+    EquipmentSearchService,
     SatelliteAnalysisParser,
     SurfaceAnalysisParser,
     EnvironmentAnalysisParser,

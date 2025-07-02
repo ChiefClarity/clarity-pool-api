@@ -24,6 +24,7 @@ import { SkimmerAnalysisParser } from './parsers/skimmer-analysis.parser';
 import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
 import { EquipmentAnalysisParser } from './parsers/equipment-analysis.parser';
 import { SurfaceAnalysisPrompt } from './prompts/surface-analysis.prompt';
+import { EquipmentSearchService } from './services/equipment-search.service';
 
 interface AIProvider {
   name: string;
@@ -53,6 +54,7 @@ export class AiService implements OnModuleInit {
     private readonly skimmerParser: SkimmerAnalysisParser,
     private readonly deckParser: DeckAnalysisParser,
     private readonly equipmentParser: EquipmentAnalysisParser,
+    private readonly equipmentSearchService: EquipmentSearchService,
   ) {
     this.googleMaps = new GoogleMapsClient({});
     // Register this service
@@ -833,6 +835,50 @@ Important:
             // Parse each equipment analysis
             const parsedResult = this.equipmentParser.parse(result);
 
+            // Handle generic timers with null brand/model
+            if (parsedResult.equipmentType === 'timer') {
+              parsedResult.brand = parsedResult.brand || 'Generic';
+              parsedResult.model = parsedResult.model || 'Mechanical Timer';
+
+              // Log timer detection for debugging
+              this.logger.log(
+                `Timer detected - Settings: ${JSON.stringify(parsedResult.timerSettings)}`,
+              );
+            }
+
+            // Enhance with web search if we have brand and model
+            if (
+              parsedResult.brand &&
+              parsedResult.model &&
+              parsedResult.equipmentType !== 'timer' &&
+              parsedResult.equipmentType !== 'unknown'
+            ) {
+              const searchData =
+                await this.equipmentSearchService.searchEquipmentInfo(
+                  parsedResult.brand,
+                  parsedResult.model,
+                );
+
+              if (searchData) {
+                if (searchData.actualBrand) {
+                  this.logger.log(
+                    `Correcting brand from ${parsedResult.brand} to ${searchData.actualBrand}`,
+                  );
+                  parsedResult.brand = searchData.actualBrand;
+                }
+                if (
+                  searchData.replacementCartridge &&
+                  parsedResult.equipmentType === 'filter'
+                ) {
+                  this.logger.log(
+                    `Found replacement cartridge: ${searchData.replacementCartridge}`,
+                  );
+                  parsedResult.replacementCartridge =
+                    searchData.replacementCartridge;
+                }
+              }
+            }
+
             // Add image metadata
             if (parsedResult.equipmentType !== 'unknown') {
               return {
@@ -1054,6 +1100,41 @@ HEATERS - Return equipment_subtype as one of:
 
 SANITIZERS - equipment_type should be:
 - "chlorinator" for salt systems (iChlor, AquaRite, etc)
+
+MECHANICAL/ELECTRICAL TIMER ANALYSIS:
+For ANY timer device (mechanical dial, digital, or smart):
+
+BRAND DETECTION:
+- If no visible brand on timer: brand = "Generic", model = "Mechanical Timer"
+- Common timer brands: Intermatic, Tork, NSi, Grasslin
+
+MECHANICAL DIAL TIMERS (with pins/trippers):
+1. Identify the dial type:
+   - 24-hour dial (numbers 1-24 or military time)
+   - 12-hour dial with AM/PM (numbers 1-12 twice)
+2. Find the current time arrow/pointer
+3. Identify ON/OFF pins or trippers:
+   - ON pins: Usually pushed OUT from center or colored differently
+   - OFF pins: Usually pushed IN toward center
+   - Some timers use clips that slide on the outer edge
+4. Read the schedule:
+   - Start from 12:00 AM (midnight) position
+   - First ON pin/tripper = on_time
+   - First OFF pin/tripper after ON = off_time
+   - Convert to "HH:MM AM/PM" format
+   Example: Pins OUT from 8 to 18 on 24hr dial = "8:00 AM" to "6:00 PM"
+
+DIGITAL TIMERS:
+- Look for LCD/LED display showing current time
+- Check for programmed schedules if visible
+- Default to brand = manufacturer name, model = model number
+
+For timer_settings, ALWAYS attempt to read and return:
+{
+  "on_time": "HH:MM AM/PM" or null if unreadable,
+  "off_time": "HH:MM AM/PM" or null if unreadable,
+  "duration": calculate hours between on/off or null
+}
 
 FILTER CARTRIDGE REPLACEMENT MODELS:
 If this is a filter, also determine the replacement cartridge:
