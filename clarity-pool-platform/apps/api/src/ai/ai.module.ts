@@ -24,12 +24,13 @@ import { SurfaceAnalysisParser } from './parsers/surface-analysis.parser';
 import { EnvironmentAnalysisParser } from './parsers/environment-analysis.parser';
 import { SkimmerAnalysisParser } from './parsers/skimmer-analysis.parser';
 import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
+import { EquipmentAnalysisParser } from './parsers/equipment-analysis.parser';
 
 @Module({
   imports: [ConfigModule, HttpModule, PrismaModule, UploadsModule],
   controllers: [AIAnalysisController, AiController, AiHealthController],
   providers: [
-    InitializationStateService,  // Must be first
+    InitializationStateService, // Must be first
     GoogleCloudAuthService,
     AIAnalysisService,
     GeminiVisionService,
@@ -41,7 +42,13 @@ import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
     EnvironmentAnalysisParser,
     SkimmerAnalysisParser,
     DeckAnalysisParser,
+    EquipmentAnalysisParser,
   ],
-  exports: [AIAnalysisService, AiService, GoogleCloudAuthService, InitializationStateService],
+  exports: [
+    AIAnalysisService,
+    AiService,
+    GoogleCloudAuthService,
+    InitializationStateService,
+  ],
 })
 export class AIModule {}
