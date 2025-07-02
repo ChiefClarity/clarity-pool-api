@@ -854,11 +854,13 @@ Important:
         // All providers failed for this image
         return {
           equipmentType: 'unknown',
+          equipmentSubtype: 'unknown',
           brand: 'unknown',
           model: 'unknown',
           serialNumber: '',
           age: 'unknown',
           condition: 'unknown',
+          replacementCartridge: '',
           issues: {
             rust: false,
             leaks: false,
@@ -989,6 +991,7 @@ Important:
             horsepower: pump.specifications?.horsepower,
             age: pump.age,
             condition: pump.condition,
+            type: pump.equipmentSubtype || 'single-speed',
           }
         : null,
 
@@ -997,8 +1000,10 @@ Important:
             brand: filter.brand,
             model: filter.model,
             serialNumber: filter.serialNumber,
-            type: filter.specifications?.filterSize,
+            type: filter.equipmentSubtype || 'cartridge',
+            size: filter.specifications?.filterSize,
             condition: filter.condition,
+            replacementCartridge: filter.replacementCartridge,
           }
         : null,
 
@@ -1009,6 +1014,7 @@ Important:
             serialNumber: heater.serialNumber,
             capacity: heater.specifications?.capacity,
             condition: heater.condition,
+            type: heater.equipmentSubtype || 'gas',
           }
         : null,
 
@@ -1026,18 +1032,50 @@ Important:
 
   private getEquipmentPrompt(equipmentType?: string): string {
     return `Analyze this pool equipment image as an expert technician.
-  ${equipmentType ? `The user indicates this is a ${equipmentType}.` : ''}
+${equipmentType ? `The user indicates this is a ${equipmentType}.` : ''}
 
 CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
 
-Identify ALL visible equipment in the image and return:
+EQUIPMENT TYPE DETECTION (MUST match these exact values):
+PUMPS - Return equipment_subtype as one of:
+- "single-speed" for single speed pumps
+- "two-speed" for 2-speed pumps  
+- "variable-speed" for VS, VSF, or Variable Speed pumps
+
+FILTERS - Return equipment_subtype as one of:
+- "cartridge" for cartridge filters (Jandy CS series, Pentair Clean & Clear, etc)
+- "DE" for diatomaceous earth filters
+- "sand" for sand filters
+
+HEATERS - Return equipment_subtype as one of:
+- "gas" for natural gas or propane heaters
+- "electric" for electric resistance heaters
+- "heat-pump" for heat pump heaters (like Pentair UltraTemp)
+
+SANITIZERS - equipment_type should be:
+- "chlorinator" for salt systems (iChlor, AquaRite, etc)
+
+FILTER CARTRIDGE REPLACEMENT MODELS:
+If this is a filter, also determine the replacement cartridge:
+- Jandy CS100 uses: 4 x C-7468 or PJAN100
+- Jandy CS150 uses: 4 x C-7469 or PJAN115  
+- Jandy CS200 uses: 4 x C-7470 or PJAN145
+- Jandy CS250 uses: 4 x C-7471 or PJAN150
+- Pentair Clean & Clear 320 uses: 4 x C-7471
+- Pentair Clean & Clear 420 uses: 4 x C-7472
+- Hayward C3030 uses: C-7483
+- Hayward C4030 uses: CX580XRE
+
+Return this exact JSON structure:
 {
   "equipment_type": "pump|filter|heater|chlorinator|automation|valve|timer|other",
-  "brand": "detected brand name",
-  "model": "detected model number",
-  "serial_number": "detected serial",
-  "age": "estimated age in years or era",
+  "equipment_subtype": "CRITICAL - use exact values listed above",
+  "brand": "exact brand name from label",
+  "model": "complete model number",
+  "serial_number": "exact serial if clearly visible, null if not",
+  "age": "estimated age or null",
   "condition": "excellent|good|fair|poor",
+  "replacement_cartridge": "cartridge model if this is a filter, null otherwise",
   "issues": {
     "rust": true/false,
     "leaks": true/false,
@@ -1047,27 +1085,20 @@ Identify ALL visible equipment in the image and return:
     "noise": true/false
   },
   "specifications": {
-    "horsepower": "HP value if pump",
-    "voltage": "voltage if visible",
-    "filter_size": "size if filter",
-    "flow_rate": "GPM if visible",
-    "capacity": "BTU/gallons if applicable"
+    "horsepower": "HP value or null",
+    "voltage": "voltage or null", 
+    "filter_size": "sq ft rating or null",
+    "flow_rate": "GPM or null",
+    "capacity": "BTU rating or null"
   },
-  "maintenance_needed": ["specific maintenance items"],
+  "maintenance_needed": ["specific items"],
   "recommendations": ["specific recommendations"],
-  "detected_equipment": [
-    {
-      "type": "equipment type",
-      "brand": "brand if visible",
-      "model": "model if visible",
-      "condition": "condition assessment"
-    }
-  ],
-  "pressure_reading": number or null,
+  "detected_equipment": [],
+  "pressure_reading": null,
   "timer_settings": {
-    "on_time": "time if visible",
-    "off_time": "time if visible",
-    "duration": "run duration"
+    "on_time": null,
+    "off_time": null,
+    "duration": null
   }
 }`;
   }

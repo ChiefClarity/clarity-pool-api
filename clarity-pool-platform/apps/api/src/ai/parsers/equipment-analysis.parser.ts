@@ -20,6 +20,8 @@ export const EquipmentResponseSchema = z.object({
   serial_number: z.string().nullable().optional(),
   age: z.string().nullable().optional(),
   condition: z.enum(['excellent', 'good', 'fair', 'poor']).optional(),
+  equipment_subtype: z.string().nullable().optional(),
+  replacement_cartridge: z.string().nullable().optional(),
   issues: z
     .object({
       rust: z.boolean().optional(),
@@ -67,11 +69,13 @@ export const EquipmentResponseSchema = z.object({
 
 export interface ParsedEquipmentAnalysis {
   equipmentType: string;
+  equipmentSubtype: string;
   brand: string;
   model: string;
   serialNumber: string;
   age: string;
   condition: string;
+  replacementCartridge: string;
   issues: {
     rust: boolean;
     leaks: boolean;
@@ -119,11 +123,13 @@ export class EquipmentAnalysisParser extends BaseAnalysisParser<
   protected getDefaultResult(): ParsedEquipmentAnalysis {
     return {
       equipmentType: 'unknown',
+      equipmentSubtype: 'unknown',
       brand: 'unknown',
       model: 'unknown',
       serialNumber: '',
       age: 'unknown',
       condition: 'unknown',
+      replacementCartridge: '',
       issues: {
         rust: false,
         leaks: false,
@@ -157,11 +163,13 @@ export class EquipmentAnalysisParser extends BaseAnalysisParser<
   ): ParsedEquipmentAnalysis {
     return {
       equipmentType: data.equipment_type || 'unknown',
+      equipmentSubtype: data.equipment_subtype || 'unknown',
       brand: data.brand || 'unknown',
       model: data.model || 'unknown',
       serialNumber: data.serial_number || '',
       age: data.age || 'unknown',
       condition: data.condition || 'unknown',
+      replacementCartridge: data.replacement_cartridge || '',
       issues: {
         rust: data.issues?.rust || false,
         leaks: data.issues?.leaks || false,
