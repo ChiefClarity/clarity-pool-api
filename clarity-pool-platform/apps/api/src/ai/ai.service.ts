@@ -846,12 +846,11 @@ Important:
               );
             }
 
-            // Enhance with web search if we have brand and model
+            // Only search for filter replacement cartridges
             if (
+              parsedResult.equipmentType === 'filter' &&
               parsedResult.brand &&
-              parsedResult.model &&
-              parsedResult.equipmentType !== 'timer' &&
-              parsedResult.equipmentType !== 'unknown'
+              parsedResult.model
             ) {
               const searchData =
                 await this.equipmentSearchService.searchEquipmentInfo(
@@ -995,6 +994,9 @@ Important:
         eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer',
     );
 
+    // Find timer if present
+    const timer = analyzedEquipment.find((eq) => eq.equipmentType === 'timer');
+
     // Use pump as base or first equipment
     const primaryEquipment = pump || filter || analyzedEquipment[0];
 
@@ -1073,6 +1075,20 @@ Important:
             condition: sanitizer.condition,
           }
         : null,
+
+      timer: timer
+        ? {
+            brand: timer.brand,
+            model: timer.model,
+            type: timer.equipmentSubtype || 'mechanical',
+            condition: timer.condition,
+            timerSettings: timer.timerSettings || {
+              onTime: '',
+              offTime: '',
+              duration: '',
+            },
+          }
+        : null,
     };
   }
 
@@ -1117,12 +1133,29 @@ MECHANICAL DIAL TIMERS (with pins/trippers):
    - ON pins: Usually pushed OUT from center or colored differently
    - OFF pins: Usually pushed IN toward center
    - Some timers use clips that slide on the outer edge
-4. Read the schedule:
-   - Start from 12:00 AM (midnight) position
-   - First ON pin/tripper = on_time
-   - First OFF pin/tripper after ON = off_time
-   - Convert to "HH:MM AM/PM" format
-   Example: Pins OUT from 8 to 18 on 24hr dial = "8:00 AM" to "6:00 PM"
+4. Read the schedule by examining the dial:
+   - Look for YELLOW/BRASS colored pins or trippers
+   - Pins pushed OUTWARD = Equipment ON
+   - Pins pushed INWARD = Equipment OFF
+   - Count segments between first OUT pin and next IN pin
+   - Common patterns:
+     * 8am-6pm = typical daytime run
+     * 6am-12pm + 4pm-8pm = split schedule
+   - If you can see pins but times are unclear, estimate:
+     * Morning start: "8:00 AM" (estimated)
+     * Evening end: "6:00 PM" (estimated)
+   Example response for visible but unclear pins:
+   timer_settings: {
+     "on_time": "8:00 AM",
+     "off_time": "6:00 PM",
+     "duration": "10 hours"
+   }
+5. If NO pins are visible or timer is digital without visible schedule:
+   timer_settings: {
+     "on_time": null,
+     "off_time": null,
+     "duration": null
+   }
 
 DIGITAL TIMERS:
 - Look for LCD/LED display showing current time
