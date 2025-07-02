@@ -776,59 +776,201 @@ Important:
   }
 
   async analyzeEquipment(
-    imageBase64: string,
+    images: string | string[],
     sessionId: string,
     equipmentType?: string,
   ): Promise<any> {
     try {
       this.logger.log(`Analyzing equipment for session: ${sessionId}`);
 
-      // Remove data URL prefix
-      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      // Handle both single image (legacy) and multiple images
+      const imageArray = Array.isArray(images) ? images : [images];
+      this.logger.log(`Processing ${imageArray.length} equipment images`);
 
-      // Upload to S3
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      const uploadResult = await this.uploadsService.uploadImage(
-        imageBuffer,
-        'image/jpeg',
-        'equipment',
-        {
-          sessionId,
-          analysisType: 'equipment',
-          equipmentType: equipmentType || 'unknown',
-        },
-      );
+      const uploadedImages = [];
+      const allDetectedEquipment = [];
 
-      // Use provider fallback for analysis
+      // Upload all equipment images
+      for (let i = 0; i < imageArray.length; i++) {
+        const base64Data = imageArray[i].replace(
+          /^data:image\/\w+;base64,/,
+          '',
+        );
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+
+        const uploadResult = await this.uploadsService.uploadImage(
+          imageBuffer,
+          'image/jpeg',
+          'equipment',
+          {
+            sessionId,
+            analysisType: 'equipment',
+            equipmentType: equipmentType || 'unknown',
+            imageIndex: i.toString(),
+          },
+        );
+
+        uploadedImages.push({
+          url: uploadResult.url,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+        });
+      }
+
+      // Analyze each image individually and aggregate results
       let lastError: Error | null = null;
+      const analyzedEquipment: any[] = [];
 
-      for (const provider of this.aiProviders) {
-        if (!provider.available) continue;
+      for (let i = 0; i < uploadedImages.length; i++) {
+        for (const provider of this.aiProviders) {
+          if (!provider.available) continue;
 
-        try {
-          const result = await provider.analyze(
-            uploadResult.url,
-            this.getEquipmentPrompt(equipmentType),
-          );
+          try {
+            this.logger.log(
+              `Analyzing equipment image ${i + 1} with ${provider.name}`,
+            );
 
-          const parsedResult = this.equipmentParser.parse(result);
+            const result = await provider.analyze(
+              uploadedImages[i].url,
+              this.getEquipmentPrompt(equipmentType),
+            );
 
-          return {
-            success: true,
-            imageUrl: uploadResult.url,
-            thumbnailUrl: uploadResult.thumbnailUrl,
-            analysis: parsedResult,
-          };
-        } catch (error) {
-          lastError = error;
+            // Parse each equipment analysis
+            const parsedResult = this.equipmentParser.parse(result);
+            analyzedEquipment.push(parsedResult);
+
+            // Add to detected equipment list
+            if (parsedResult.equipmentType !== 'unknown') {
+              allDetectedEquipment.push({
+                type: parsedResult.equipmentType,
+                brand: parsedResult.brand,
+                model: parsedResult.model,
+                condition: parsedResult.condition,
+                imageIndex: i,
+                imageUrl: uploadedImages[i].url,
+              });
+            }
+
+            break; // Success, move to next image
+          } catch (error) {
+            lastError = error;
+            this.logger.warn(
+              `Provider ${provider.name} failed for image ${i + 1}: ${error.message}`,
+            );
+          }
         }
       }
 
-      throw new Error(`Failed to analyze equipment: ${lastError?.message}`);
+      // If no equipment was successfully analyzed
+      if (analyzedEquipment.length === 0) {
+        throw new Error(`Failed to analyze equipment: ${lastError?.message}`);
+      }
+
+      // Aggregate results from all images
+      const aggregatedAnalysis = this.aggregateEquipmentAnalysis(
+        analyzedEquipment,
+        allDetectedEquipment,
+      );
+
+      return {
+        success: true,
+        imageUrls: uploadedImages.map((img) => img.url),
+        thumbnailUrls: uploadedImages.map((img) => img.thumbnailUrl),
+        analysis: aggregatedAnalysis,
+      };
     } catch (error) {
       this.logger.error('Equipment analysis failed:', error);
       throw new BadRequestException('Failed to analyze equipment');
     }
+  }
+
+  private aggregateEquipmentAnalysis(
+    analyzedEquipment: any[],
+    detectedEquipment: any[],
+  ): any {
+    // Find primary equipment (pump, filter, heater, sanitizer)
+    const pump = analyzedEquipment.find((eq) => eq.equipmentType === 'pump');
+    const filter = analyzedEquipment.find(
+      (eq) => eq.equipmentType === 'filter',
+    );
+    const heater = analyzedEquipment.find(
+      (eq) => eq.equipmentType === 'heater',
+    );
+    const sanitizer = analyzedEquipment.find(
+      (eq) =>
+        eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer',
+    );
+
+    // Use pump as base or first equipment
+    const primaryEquipment = pump || filter || analyzedEquipment[0];
+
+    // Aggregate all maintenance needs and recommendations
+    const allMaintenanceNeeded = [
+      ...new Set(analyzedEquipment.flatMap((eq) => eq.maintenanceNeeded || [])),
+    ];
+
+    const allRecommendations = [
+      ...new Set(analyzedEquipment.flatMap((eq) => eq.recommendations || [])),
+    ];
+
+    // Determine overall condition (worst condition wins)
+    const conditionPriority = ['poor', 'fair', 'good', 'excellent'];
+    const overallCondition =
+      analyzedEquipment
+        .map((eq) => eq.condition)
+        .filter(Boolean)
+        .sort(
+          (a, b) => conditionPriority.indexOf(a) - conditionPriority.indexOf(b),
+        )[0] || 'unknown';
+
+    return {
+      ...primaryEquipment,
+      detectedEquipment: detectedEquipment,
+      overallCondition: overallCondition,
+      maintenanceNeeded: allMaintenanceNeeded,
+      recommendations: allRecommendations,
+      confidence: Math.max(
+        ...analyzedEquipment.map((eq) => eq.confidence || 0),
+      ),
+      imagesAnalyzed: analyzedEquipment.length,
+
+      // Include specific equipment if detected
+      pump: pump
+        ? {
+            brand: pump.brand,
+            model: pump.model,
+            horsepower: pump.specifications?.horsepower,
+            age: pump.age,
+            condition: pump.condition,
+          }
+        : null,
+
+      filter: filter
+        ? {
+            brand: filter.brand,
+            model: filter.model,
+            type: filter.specifications?.filterSize,
+            condition: filter.condition,
+          }
+        : null,
+
+      heater: heater
+        ? {
+            brand: heater.brand,
+            model: heater.model,
+            capacity: heater.specifications?.capacity,
+            condition: heater.condition,
+          }
+        : null,
+
+      sanitizer: sanitizer
+        ? {
+            brand: sanitizer.brand,
+            model: sanitizer.model,
+            type: sanitizer.equipmentType,
+            condition: sanitizer.condition,
+          }
+        : null,
+    };
   }
 
   private getEquipmentPrompt(equipmentType?: string): string {

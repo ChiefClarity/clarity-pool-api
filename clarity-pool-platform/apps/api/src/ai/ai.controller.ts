@@ -1,12 +1,12 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
+import {
+  Controller,
+  Post,
+  Body,
   UseGuards,
   Logger,
   BadRequestException,
   HttpException,
-  HttpStatus
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiService } from './ai.service';
@@ -21,32 +21,38 @@ export class AiController {
   @Post('analyze-test-strip')
   async analyzeTestStrip(@Body() body: { image: string; sessionId?: string }) {
     // IMMEDIATE LOGGING
-    console.log('🚨 [AI Controller] Request received at:', new Date().toISOString());
+    console.log(
+      '🚨 [AI Controller] Request received at:',
+      new Date().toISOString(),
+    );
     console.log('🚨 [AI Controller] Body keys:', Object.keys(body));
     console.log('🚨 [AI Controller] Image length:', body.image?.length || 0);
     console.log('🚨 [AI Controller] SessionId:', body.sessionId);
-    
+
     try {
       this.logger.log('Received test strip analysis request');
-      
+
       // Validate request body
       if (!body.image) {
         throw new BadRequestException('Image is required');
       }
-      
+
       // Generate sessionId if not provided
       const sessionId = body.sessionId || `session-${Date.now()}`;
-      
-      const result = await this.aiService.analyzeTestStrip(body.image, sessionId);
+
+      const result = await this.aiService.analyzeTestStrip(
+        body.image,
+        sessionId,
+      );
       return result;
     } catch (error) {
       this.logger.error('Test strip analysis error:', error);
       this.logger.error('Error stack:', error.stack);
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       // For debugging, return the actual error details
       throw new HttpException(
         {
@@ -58,8 +64,9 @@ export class AiController {
             actualError: error.message,
             type: error.constructor.name,
             // Only in development
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-          }
+            stack:
+              process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          },
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -67,20 +74,25 @@ export class AiController {
   }
 
   @Post('analyze-pool-satellite')
-  async analyzePoolSatellite(@Body() body: { address: string; sessionId: string }) {
+  async analyzePoolSatellite(
+    @Body() body: { address: string; sessionId: string },
+  ) {
     console.log('🛰️ [AI Controller] Received satellite analysis request:', {
       address: body.address,
       sessionId: body.sessionId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
+
     try {
-      const result = await this.aiService.analyzePoolSatellite(body.address, body.sessionId);
+      const result = await this.aiService.analyzePoolSatellite(
+        body.address,
+        body.sessionId,
+      );
       console.log('✅ [AI Controller] Satellite analysis complete:', {
         success: result.success,
         hasLocation: !!result.location,
         hasAnalysis: !!result.analysis,
-        poolDetected: result.analysis?.poolDetected
+        poolDetected: result.analysis?.poolDetected,
       });
       return result;
     } catch (error) {
@@ -90,19 +102,46 @@ export class AiController {
   }
 
   @Post('analyze-equipment')
-  async analyzeEquipment(@Body() body: { image: string; sessionId: string; equipmentType?: string }) {
+  async analyzeEquipment(
+    @Body()
+    body: {
+      image?: string;
+      images?: string[]; // Add support for multiple images
+      sessionId: string;
+      equipmentType?: string;
+    },
+  ) {
     this.logger.log('Received equipment analysis request');
-    return this.aiService.analyzeEquipment(body.image, body.sessionId, body.equipmentType);
+
+    // Support both single image (legacy) and multiple images
+    const images = body.images || (body.image ? [body.image] : []);
+
+    if (images.length === 0) {
+      throw new BadRequestException('No images provided for analysis');
+    }
+
+    return this.aiService.analyzeEquipment(
+      images,
+      body.sessionId,
+      body.equipmentType,
+    );
   }
 
   @Post('generate-chemistry-insights')
-  async generateChemistryInsights(@Body() body: { readings: any; sessionId: string }) {
+  async generateChemistryInsights(
+    @Body() body: { readings: any; sessionId: string },
+  ) {
     this.logger.log('Received chemistry insights request');
-    return this.aiService.generateWaterChemistryInsights(body.readings, body.sessionId);
+    return this.aiService.generateWaterChemistryInsights(
+      body.readings,
+      body.sessionId,
+    );
   }
 
   @Post('transcribe-voice-note')
-  async transcribeVoiceNote(@Body() body: { audio: string; sessionId: string }) {
+  async transcribeVoiceNote(
+    @Body() body: { audio: string; sessionId: string },
+  ) {
     this.logger.log('Received voice transcription request');
     return this.aiService.transcribeVoiceNote(body.audio, body.sessionId);
   }
@@ -114,7 +153,9 @@ export class AiController {
   }
 
   @Post('analyze-environment')
-  async analyzeEnvironment(@Body() body: { images: string[]; sessionId: string }) {
+  async analyzeEnvironment(
+    @Body() body: { images: string[]; sessionId: string },
+  ) {
     this.logger.log('Received environment analysis request');
     return this.aiService.analyzePoolEnvironment(body.images, body.sessionId);
   }

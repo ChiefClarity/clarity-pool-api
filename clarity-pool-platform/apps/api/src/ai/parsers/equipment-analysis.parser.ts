@@ -32,11 +32,11 @@ export const EquipmentResponseSchema = z.object({
     .optional(),
   specifications: z
     .object({
-      horsepower: z.string().optional(),
-      voltage: z.string().optional(),
-      filter_size: z.string().optional(),
-      flow_rate: z.string().optional(),
-      capacity: z.string().optional(),
+      horsepower: z.string().nullable().optional(),
+      voltage: z.string().nullable().optional(),
+      filter_size: z.string().nullable().optional(),
+      flow_rate: z.string().nullable().optional(),
+      capacity: z.string().nullable().optional(),
     })
     .optional(),
   maintenance_needed: z.array(z.string()).optional(),
@@ -55,12 +55,12 @@ export const EquipmentResponseSchema = z.object({
     .optional(),
 
   // Specific readings
-  pressure_reading: z.number().optional(),
+  pressure_reading: z.number().nullable().optional(),
   timer_settings: z
     .object({
-      on_time: z.string().optional(),
-      off_time: z.string().optional(),
-      duration: z.string().optional(),
+      on_time: z.string().nullable().optional(),
+      off_time: z.string().nullable().optional(),
+      duration: z.string().nullable().optional(),
     })
     .optional(),
 });
