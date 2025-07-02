@@ -49,12 +49,13 @@ export class EquipmentSearchService {
         model,
       );
     } catch (error: any) {
-      // Log more details about the error
-      if (error.response) {
-        this.logger.error(`Search API Error ${error.response.status}: ${error.response.data?.error?.message || error.message}`);
-        if (error.response.status === 403) {
-          this.logger.error('403 Error - Check that Custom Search API is enabled for your API key in Google Cloud Console');
-        }
+      // Enhanced error logging for debugging
+      if (error.response?.status === 403) {
+        this.logger.error('Google Custom Search API 403 Error - Possible causes:');
+        this.logger.error('1. Custom Search API not enabled in Google Cloud Console');
+        this.logger.error('2. API key restrictions blocking the request');
+        this.logger.error('3. Search Engine ID misconfigured');
+        this.logger.error(`Full error: ${JSON.stringify(error.response.data)}`);
       }
       this.logger.warn(`Search failed for ${brand} ${model}:`, error.message);
       return null;
