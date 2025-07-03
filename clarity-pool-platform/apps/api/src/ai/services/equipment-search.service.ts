@@ -177,23 +177,39 @@ export class EquipmentSearchService {
           return hasLetters && hasNumbers && reasonableLength && !isGeneric;
         });
 
-        // Score parts by likelihood of being a model number
+        // Extract the most likely cartridge model from results
         if (validParts.length > 0) {
-          const scoredParts = validParts.map(part => ({
-            part,
-            score: (
-              (part.match(/\d/g) || []).length * 2 + // Numbers are important
-              (part.includes('-') ? 5 : 0) + // Dashes are common in part numbers
-              (part.length >= 6 ? 3 : 0) + // Reasonable length
-              (/^[A-Z]{2,5}\d+/.test(part) ? 10 : 0) // Common pattern
-            )
-          }));
-
-          // Take the highest scoring part
-          const bestPart = scoredParts.sort((a, b) => b.score - a.score)[0];
-          if (bestPart.score > 5) { // Minimum score threshold
-            data.replacementCartridge = bestPart.part;
-            this.logger.log(`Found cartridge model: ${data.replacementCartridge} (score: ${bestPart.score})`);
+          // Score each part based on pattern characteristics
+          const scoredParts = validParts.map(part => {
+            let score = 0;
+            
+            // Common patterns get higher scores
+            if (/^[A-Z]{1,5}[\-]?\d{2,5}$/.test(part)) score += 20; // Like PJAN115, C-7468
+            if (/^\d+[A-Z]+\d+$/.test(part)) score += 15; // Like 4C7468
+            if (part.includes('-')) score += 5; // Dashes are common
+            
+            // Length preferences
+            if (part.length >= 5 && part.length <= 10) score += 10;
+            
+            // Alphanumeric balance
+            const letters = (part.match(/[A-Z]/g) || []).length;
+            const numbers = (part.match(/\d/g) || []).length;
+            if (letters > 0 && numbers > 0 && Math.abs(letters - numbers) < 4) score += 5;
+            
+            return { part, score };
+          });
+          
+          // Sort by score and take the best one
+          const sorted = scoredParts.sort((a, b) => b.score - a.score);
+          
+          if (sorted.length > 0 && sorted[0].score >= 10) {
+            data.replacementCartridge = sorted[0].part;
+            this.logger.log(`Selected cartridge: ${data.replacementCartridge} (score: ${sorted[0].score})`);
+            
+            // Log other candidates for debugging
+            if (sorted.length > 1) {
+              this.logger.debug('Other candidates:', sorted.slice(1, 4).map(s => `${s.part}(${s.score})`));
+            }
           }
         }
       }

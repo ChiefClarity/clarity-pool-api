@@ -992,27 +992,42 @@ Important:
       if (candidates.length === 0) return null;
       if (candidates.length === 1) return candidates[0];
       
-      // Score each candidate based on information quality
+      // Score based on data completeness and quality
       return candidates.reduce((best, current) => {
         const score = (equipment: any) => {
           let points = 0;
           
-          // More specific models score higher
-          if (equipment.model) {
-            points += equipment.model.length;
-            points += (equipment.model.match(/\d/g) || []).length * 10; // Numbers add specificity
+          // Prefer entries with serial numbers (most specific)
+          if (equipment.serialNumber) points += 100;
+          
+          // Prefer entries where brand != model (indicates proper parsing)
+          if (equipment.brand && equipment.model && 
+              equipment.brand.toLowerCase() !== equipment.model.toLowerCase()) {
+            points += 50;
           }
           
-          // Having serial number is good
-          if (equipment.serialNumber) points += 20;
+          // Prefer reasonable length models (not too short, not too long)
+          if (equipment.model) {
+            const len = equipment.model.length;
+            if (len >= 5 && len <= 20) points += 30;
+            else if (len > 20) points -= 20; // Penalize overly long models
+          }
           
-          // Non-generic brands score higher
-          if (equipment.brand && equipment.brand !== 'Generic') points += 10;
+          // Prefer entries with more complete data
+          if (equipment.condition && equipment.condition !== 'unknown') points += 10;
+          if (equipment.equipmentSubtype) points += 10;
           
           return points;
         };
         
-        return score(current) > score(best) ? current : best;
+        const currentScore = score(current);
+        const bestScore = score(best);
+        
+        if (currentScore !== bestScore) {
+          this.logger.debug(`${type} scoring: "${current.brand} ${current.model}" (${currentScore}) vs "${best.brand} ${best.model}" (${bestScore})`);
+        }
+        
+        return currentScore > bestScore ? current : best;
       });
     };
 
@@ -1032,6 +1047,31 @@ Important:
                         type === 'sanitizer' ? sanitizer : timer;
       if (equipment) {
         this.logger.debug(`${type}: ${equipment.brand} ${equipment.model}`);
+      }
+    });
+
+    // Clean overly complex model names using patterns
+    const cleanModelName = (model: string): string => {
+      if (!model) return model;
+      
+      // Remove redundant prefixes that are all caps and 3-5 letters
+      let cleaned = model.replace(/^[A-Z]{3,5}\s+/g, '');
+      
+      // Remove trailing all-caps codes that look like internal references
+      cleaned = cleaned.replace(/\s+[A-Z]{4,}$/g, '');
+      
+      // If the result is empty or too short, return original
+      return cleaned.length >= 3 ? cleaned : model;
+    };
+
+    // Apply to all equipment
+    [pump, filter, heater, sanitizer, timer].forEach(equipment => {
+      if (equipment?.model) {
+        const cleaned = cleanModelName(equipment.model);
+        if (cleaned !== equipment.model) {
+          this.logger.debug(`Cleaned model: "${equipment.model}" -> "${cleaned}"`);
+          equipment.model = cleaned;
+        }
       }
     });
 
