@@ -1046,7 +1046,22 @@ Important:
       filter: filter
         ? {
             brand: filter.brand,
-            model: filter.model,
+            model: filter.model || (() => {
+              // Find the most specific model from all filter detections
+              const filterModels = analyzedEquipment
+                .filter(eq => eq.equipmentType === 'filter' && eq.model)
+                .map(eq => eq.model);
+              
+              if (filterModels.length === 0) return '';
+              
+              // Sort by specificity: prefer models with numbers/details
+              return filterModels.sort((a, b) => {
+                // Count alphanumeric characters
+                const aDetail = (a.match(/[A-Z0-9]/gi) || []).length;
+                const bDetail = (b.match(/[A-Z0-9]/gi) || []).length;
+                return bDetail - aDetail;
+              })[0];
+            })(),
             serialNumber: filter.serialNumber || analyzedEquipment.find(eq => eq.equipmentType === 'filter' && eq.serialNumber)?.serialNumber || '',
             type: filter.equipmentSubtype || 'cartridge',
             size: filter.specifications?.filterSize,
@@ -1174,6 +1189,37 @@ For timer_settings, ALWAYS attempt to read and return:
 }
 
 IMPORTANT: If you can clearly see timer pins but cannot determine exact times, still return your best estimate based on pin positions.
+
+VISUAL ANALYSIS INSTRUCTIONS FOR MECHANICAL TIMERS:
+When analyzing a mechanical timer with visible dial and pins:
+
+1. DIAL ORIENTATION:
+   - Locate the current time arrow/pointer on the dial
+   - Identify if it's a 24-hour dial (0-23) or 12-hour dial (with AM/PM)
+   - Note the direction of rotation (typically clockwise)
+
+2. PIN ANALYSIS:
+   - Count total number of movable pins/trippers around the dial
+   - Identify pin states:
+     * RAISED/OUT pins = Equipment ON during these times
+     * LOWERED/IN pins = Equipment OFF during these times
+   - Note pin colors (often yellow/brass for ON, different color for OFF)
+
+3. TIME CALCULATION:
+   - Each pin typically represents 15 or 30 minutes
+   - On a 24-hour dial: 96 pins = 15 min each, 48 pins = 30 min each
+   - Find the FIRST raised pin moving clockwise from midnight
+   - Find the LAST raised pin before encountering lowered pins
+   
+4. OUTPUT REQUIREMENTS:
+   If ANY pins are visible on the dial, you MUST provide:
+   timer_settings: {
+     "on_time": "[hour]:[minute] [AM/PM]",
+     "off_time": "[hour]:[minute] [AM/PM]",
+     "duration": "[X] hours"
+   }
+   
+   Even if exact reading is difficult, provide reasonable estimates based on pin positions.
 
 FILTER CARTRIDGE REPLACEMENT MODELS:
 If this is a filter, also determine the replacement cartridge:

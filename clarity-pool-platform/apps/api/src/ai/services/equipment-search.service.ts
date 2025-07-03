@@ -34,27 +34,59 @@ export class EquipmentSearchService {
     }
 
     try {
-      const query = `${brand} ${model} pool equipment specifications`;
-      
-      this.logger.log(`Searching for: ${query}`);
-      this.logger.log(`Using Search Engine ID: ${this.searchEngineId}`);
+      const searchQueries = [
+        `${brand} ${model} replacement filter cartridge model number`,
+        `${brand} ${model} filter element part number`,
+        `what cartridge fits ${brand} ${model} filter`
+      ];
 
+      // Try multiple queries
+      for (const query of searchQueries) {
+        this.logger.log(`Searching: ${query}`);
+        
+        const response = await axios.get(
+          'https://www.googleapis.com/customsearch/v1',
+          {
+            params: {
+              key: this.apiKey,
+              cx: this.searchEngineId,
+              q: query,
+              num: 10, // Get more results
+            },
+          },
+        );
+
+        this.logger.debug(`Search returned ${response.data?.items?.length || 0} results`);
+        if (response.data?.items?.[0]) {
+          this.logger.debug('First result snippet:', response.data.items[0].snippet);
+        }
+        
+        const extracted = this.extractEquipmentData(
+          response.data?.items || [],
+          brand,
+          model,
+        );
+        
+        if (extracted?.replacementCartridge) {
+          return extracted;
+        }
+      }
+
+      // If no cartridge found, do a general search
+      const generalQuery = `${brand} ${model} pool equipment specifications`;
+      this.logger.log(`Searching (general): ${generalQuery}`);
+      
       const response = await axios.get(
         'https://www.googleapis.com/customsearch/v1',
         {
           params: {
             key: this.apiKey,
             cx: this.searchEngineId,
-            q: query,
+            q: generalQuery,
             num: 5,
           },
         },
       );
-
-      this.logger.debug(`Search returned ${response.data?.items?.length || 0} results`);
-      if (response.data?.items?.[0]) {
-        this.logger.debug('First result snippet:', response.data.items[0].snippet);
-      }
 
       return this.extractEquipmentData(
         response.data?.items || [],
@@ -125,6 +157,25 @@ export class EquipmentSearchService {
           if (cartridgeMatch) {
             data.replacementCartridge = cartridgeMatch[1].toUpperCase();
             break;
+          }
+        }
+
+        // Extract from common result patterns
+        if (!data.replacementCartridge) {
+          const resultPatterns = [
+            /replacement[:\s]+([A-Z0-9\-]+)/i,
+            /part\s+number[:\s]+([A-Z0-9\-]+)/i,
+            /model[:\s]+([A-Z0-9\-]+)/i,
+            /fits[:\s]+([A-Z0-9\-]+)/i,
+          ];
+
+          for (const pattern of resultPatterns) {
+            const match = combined.match(pattern);
+            if (match && match[1].length > 3) { // Ensure it's not too short
+              data.replacementCartridge = match[1].toUpperCase();
+              this.logger.log(`Found cartridge via pattern: ${data.replacementCartridge}`);
+              break;
+            }
           }
         }
       }
