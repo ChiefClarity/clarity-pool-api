@@ -1133,23 +1133,17 @@ MECHANICAL DIAL TIMERS (with pins/trippers):
    - ON pins: Usually pushed OUT from center or colored differently
    - OFF pins: Usually pushed IN toward center
    - Some timers use clips that slide on the outer edge
-4. Read the schedule by examining the dial:
-   - Look for YELLOW/BRASS colored pins or trippers
-   - Pins pushed OUTWARD = Equipment ON
-   - Pins pushed INWARD = Equipment OFF
-   - Count segments between first OUT pin and next IN pin
-   - Common patterns:
-     * 8am-6pm = typical daytime run
-     * 6am-12pm + 4pm-8pm = split schedule
-   - If you can see pins but times are unclear, estimate:
-     * Morning start: "8:00 AM" (estimated)
-     * Evening end: "6:00 PM" (estimated)
-   Example response for visible but unclear pins:
-   timer_settings: {
-     "on_time": "8:00 AM",
-     "off_time": "6:00 PM",
-     "duration": "10 hours"
-   }
+4. Read the schedule:
+   - Start from 12:00 AM (midnight) position
+   - First ON pin/tripper = on_time
+   - First OFF pin/tripper after ON = off_time
+   - Convert to "HH:MM AM/PM" format
+   Example: Pins OUT from 8 to 18 on 24hr dial = "8:00 AM" to "6:00 PM"
+   
+   CRITICAL: If you can see timer pins/trippers on a mechanical dial:
+   - You MUST provide on_time and off_time estimates
+   - Use common pool timer patterns (8am-6pm is typical)
+   - Only return empty if NO pins are visible
 5. If NO pins are visible or timer is digital without visible schedule:
    timer_settings: {
      "on_time": null,

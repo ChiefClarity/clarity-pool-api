@@ -15,6 +15,14 @@ export class EquipmentSearchService {
   }
 
   async searchEquipmentInfo(brand: string, model: string): Promise<any> {
+    // Log configuration for debugging
+    this.logger.debug('Search configuration:', {
+      hasApiKey: !!this.apiKey,
+      apiKeyLength: this.apiKey?.length,
+      searchEngineId: this.searchEngineId,
+      query: `${brand} ${model} pool equipment specifications`
+    });
+
     if (!this.searchEngineId) {
       this.logger.warn('Google Custom Search Engine ID not configured');
       return null;
@@ -95,10 +103,22 @@ export class EquipmentSearchService {
         combined.includes('replacement cartridge') ||
         combined.includes('filter cartridge')
       ) {
-        // Extract model numbers (common patterns)
-        const cartridgeMatch = combined.match(/\b(c-\d+|pjan\d+|cx\d+\w*)\b/i);
-        if (cartridgeMatch) {
-          data.replacementCartridge = cartridgeMatch[1].toUpperCase();
+        // Extract model numbers using enhanced patterns
+        const patterns = [
+          /\b(c-\d{4,5})\b/i,              // Hayward: C-7626, C-7656, etc.
+          /\b(pjan[\s-]?\d{2,3})\b/i,     // Jandy: PJAN100, PJAN-115, etc.
+          /\b(cx\d{3,4}\w*)\b/i,          // Other: CX580XRE, etc.
+          /\b(r\d{6})\b/i,                // Pentair: R173214, etc.
+          /\b(fc-\d{4})\b/i,              // Filbur: FC-1234, etc.
+          /\b4\s*x\s*(c-\d{4})\b/i,       // Multi-pack: 4 x C-7468
+        ];
+
+        for (const pattern of patterns) {
+          const cartridgeMatch = combined.match(pattern);
+          if (cartridgeMatch) {
+            data.replacementCartridge = cartridgeMatch[1].toUpperCase();
+            break;
+          }
         }
       }
     }
