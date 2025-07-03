@@ -62,7 +62,10 @@ export const EquipmentResponseSchema = z.object({
     .object({
       on_time: z.string().nullable().optional(),
       off_time: z.string().nullable().optional(),
-      duration: z.string().nullable().optional(),
+      duration: z.union([z.string(), z.number()])
+        .nullable()
+        .optional()
+        .transform(val => val !== null && val !== undefined ? String(val) : ''),
     })
     .optional(),
 });

@@ -981,21 +981,59 @@ Important:
     analyzedEquipment: any[],
     detectedEquipment: any[],
   ): any {
-    // Find primary equipment (pump, filter, heater, sanitizer)
-    const pump = analyzedEquipment.find((eq) => eq.equipmentType === 'pump');
-    const filter = analyzedEquipment.find(
-      (eq) => eq.equipmentType === 'filter',
-    );
-    const heater = analyzedEquipment.find(
-      (eq) => eq.equipmentType === 'heater',
-    );
-    const sanitizer = analyzedEquipment.find(
-      (eq) =>
-        eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer',
-    );
+    // Helper to select best equipment from multiple detections
+    const selectBestEquipment = (type: string) => {
+      const candidates = analyzedEquipment.filter(eq => 
+        type === 'sanitizer' 
+          ? (eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer')
+          : eq.equipmentType === type
+      );
+      
+      if (candidates.length === 0) return null;
+      if (candidates.length === 1) return candidates[0];
+      
+      // Score each candidate based on information quality
+      return candidates.reduce((best, current) => {
+        const score = (equipment: any) => {
+          let points = 0;
+          
+          // More specific models score higher
+          if (equipment.model) {
+            points += equipment.model.length;
+            points += (equipment.model.match(/\d/g) || []).length * 10; // Numbers add specificity
+          }
+          
+          // Having serial number is good
+          if (equipment.serialNumber) points += 20;
+          
+          // Non-generic brands score higher
+          if (equipment.brand && equipment.brand !== 'Generic') points += 10;
+          
+          return points;
+        };
+        
+        return score(current) > score(best) ? current : best;
+      });
+    };
 
-    // Find timer if present
-    const timer = analyzedEquipment.find((eq) => eq.equipmentType === 'timer');
+    // Use for all equipment types
+    const pump = selectBestEquipment('pump');
+    const filter = selectBestEquipment('filter');
+    const heater = selectBestEquipment('heater');
+    const sanitizer = selectBestEquipment('sanitizer');
+    const timer = selectBestEquipment('timer');
+
+    // Add debug logging
+    this.logger.debug('Equipment selection scores:');
+    ['pump', 'filter', 'heater', 'sanitizer', 'timer'].forEach(type => {
+      const equipment = type === 'pump' ? pump : 
+                        type === 'filter' ? filter :
+                        type === 'heater' ? heater :
+                        type === 'sanitizer' ? sanitizer : timer;
+      if (equipment) {
+        this.logger.debug(`${type}: ${equipment.brand} ${equipment.model}`);
+      }
+    });
 
     // Use pump as base or first equipment
     const primaryEquipment = pump || filter || analyzedEquipment[0];
@@ -1169,6 +1207,36 @@ MECHANICAL DIAL TIMERS (with pins/trippers):
    - You MUST provide on_time and off_time estimates
    - Use common pool timer patterns (8am-6pm is typical)
    - Only return empty if NO pins are visible
+
+PRECISE TIMER PIN READING INSTRUCTIONS:
+For mechanical timer dials with visible pins/trippers:
+
+1. CLOCK POSITION MAPPING:
+   On a 24-hour timer dial:
+   - 12 o'clock (top) = 12:00 noon
+   - 3 o'clock (right) = 18:00 (6:00 PM)
+   - 6 o'clock (bottom) = 00:00 (midnight)
+   - 9 o'clock (left) = 06:00 (6:00 AM)
+   
+   For positions between hours, interpolate:
+   - Between 9 and 10 o'clock = 8:00-10:00 AM range
+   - Between 2 and 3 o'clock = 16:00-18:00 (4:00-6:00 PM) range
+
+2. PIN STATE IDENTIFICATION:
+   - RAISED/OUT pins = Equipment ON
+   - LOWERED/IN pins = Equipment OFF
+   - Look for the transition points
+
+3. REQUIRED OUTPUT:
+   If you can see pins on the dial, you MUST provide specific times based on their actual positions.
+   Do NOT default to 8:00 AM - 6:00 PM unless the pins are actually in those positions.
+   
+   Example: If pins are OUT from 10 o'clock to 3 o'clock position:
+   timer_settings: {
+     "on_time": "10:00 AM",
+     "off_time": "6:00 PM",
+     "duration": "8 hours"
+   }
 5. If NO pins are visible or timer is digital without visible schedule:
    timer_settings: {
      "on_time": null,

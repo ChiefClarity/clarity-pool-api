@@ -137,45 +137,63 @@ export class EquipmentSearchService {
 
       // Look for cartridge info
       if (
-        combined.includes('replacement cartridge') ||
-        combined.includes('filter cartridge')
+        originalModel?.toLowerCase().includes('filter') ||
+        combined.includes('cartridge') ||
+        combined.includes('replacement') ||
+        combined.includes('filter element')
       ) {
-        // Extract model numbers using enhanced patterns
+        // Generic part number patterns
         const patterns = [
-          /\b(c-\d{4,5})\b/i,              // Hayward: C-7626, C-7656, etc.
-          /\b(pjan[\s-]?\d{2,3})\b/i,     // Jandy: PJAN100, PJAN-115, etc.
-          /\b(cx\d{3,4}\w*)\b/i,          // Other: CX580XRE, etc.
-          /\b(r\d{6})\b/i,                // Pentair: R173214, etc.
-          /\b(fc-\d{4})\b/i,              // Filbur: FC-1234, etc.
-          /\b4\s*x\s*(c-\d{4})\b/i,       // Multi-pack: 4 x C-7468
-          /\b(filbur[\s-]?fc[\s-]?\d{4})\b/i,   // Filbur: Filbur FC-1234
-          /replacement.*?(pjan\d+)/i,            // Extract from "replacement: PJAN115"
+          /\b([A-Z]{1,5}[\-\s]?\d{2,6}[A-Z]?)\b/g,  // PJAN100, C-7468, FC-1234A
+          /\b(\d{1,2}[\-\s]?[A-Z]\d{2,6})\b/g,      // 4-C7468, 2-A100
+          /\b([A-Z]\d{2,6}[\-\s]?[A-Z]{1,3})\b/g,   // R173214-XRE
         ];
 
+        const extractedParts = new Set<string>();
+
+        // Extract all potential part numbers
         for (const pattern of patterns) {
-          const cartridgeMatch = combined.match(pattern);
-          if (cartridgeMatch) {
-            data.replacementCartridge = cartridgeMatch[1].toUpperCase();
-            break;
+          const matches = combined.matchAll(pattern);
+          for (const match of matches) {
+            if (match[1]) {
+              extractedParts.add(match[1].toUpperCase().replace(/\s/g, ''));
+            }
           }
         }
 
-        // Extract from common result patterns
-        if (!data.replacementCartridge) {
-          const resultPatterns = [
-            /replacement[:\s]+([A-Z0-9\-]+)/i,
-            /part\s+number[:\s]+([A-Z0-9\-]+)/i,
-            /model[:\s]+([A-Z0-9\-]+)/i,
-            /fits[:\s]+([A-Z0-9\-]+)/i,
-          ];
+        // Validate extracted parts
+        const validParts = Array.from(extractedParts).filter(part => {
+          // Must have both letters and numbers
+          const hasLetters = /[A-Z]/.test(part);
+          const hasNumbers = /\d/.test(part);
+          const reasonableLength = part.length >= 4 && part.length <= 15;
+          
+          // Exclude generic words
+          const genericWords = ['cartridge', 'cartridges', 'filter', 'filters', 'replacement', 'element'];
+          const isGeneric = genericWords.some(word => 
+            part.toLowerCase() === word
+          );
+          
+          return hasLetters && hasNumbers && reasonableLength && !isGeneric;
+        });
 
-          for (const pattern of resultPatterns) {
-            const match = combined.match(pattern);
-            if (match && match[1].length > 3) { // Ensure it's not too short
-              data.replacementCartridge = match[1].toUpperCase();
-              this.logger.log(`Found cartridge via pattern: ${data.replacementCartridge}`);
-              break;
-            }
+        // Score parts by likelihood of being a model number
+        if (validParts.length > 0) {
+          const scoredParts = validParts.map(part => ({
+            part,
+            score: (
+              (part.match(/\d/g) || []).length * 2 + // Numbers are important
+              (part.includes('-') ? 5 : 0) + // Dashes are common in part numbers
+              (part.length >= 6 ? 3 : 0) + // Reasonable length
+              (/^[A-Z]{2,5}\d+/.test(part) ? 10 : 0) // Common pattern
+            )
+          }));
+
+          // Take the highest scoring part
+          const bestPart = scoredParts.sort((a, b) => b.score - a.score)[0];
+          if (bestPart.score > 5) { // Minimum score threshold
+            data.replacementCartridge = bestPart.part;
+            this.logger.log(`Found cartridge model: ${data.replacementCartridge} (score: ${bestPart.score})`);
           }
         }
       }
