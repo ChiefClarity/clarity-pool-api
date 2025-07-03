@@ -1117,6 +1117,11 @@ HEATERS - Return equipment_subtype as one of:
 SANITIZERS - equipment_type should be:
 - "chlorinator" for salt systems (iChlor, AquaRite, etc)
 
+TIMERS - Return equipment_subtype as one of:
+- "mechanical" for mechanical dial timers with pins/trippers
+- "digital" for digital timers with LCD/LED display
+- "smart" for smart/connected timers
+
 MECHANICAL/ELECTRICAL TIMER ANALYSIS:
 For ANY timer device (mechanical dial, digital, or smart):
 
@@ -1139,6 +1144,11 @@ MECHANICAL DIAL TIMERS (with pins/trippers):
    - First OFF pin/tripper after ON = off_time
    - Convert to "HH:MM AM/PM" format
    Example: Pins OUT from 8 to 18 on 24hr dial = "8:00 AM" to "6:00 PM"
+   
+   CRITICAL: For mechanical timers with visible dial and pins:
+   - If pins are visible, timer_settings MUST contain values
+   - Default to common pool schedule if unsure: 8am-6pm
+   - Only return empty strings if NO dial/pins visible
    
    CRITICAL: If you can see timer pins/trippers on a mechanical dial:
    - You MUST provide on_time and off_time estimates

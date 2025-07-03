@@ -51,6 +51,11 @@ export class EquipmentSearchService {
         },
       );
 
+      this.logger.debug(`Search returned ${response.data?.items?.length || 0} results`);
+      if (response.data?.items?.[0]) {
+        this.logger.debug('First result snippet:', response.data.items[0].snippet);
+      }
+
       return this.extractEquipmentData(
         response.data?.items || [],
         brand,
@@ -111,6 +116,8 @@ export class EquipmentSearchService {
           /\b(r\d{6})\b/i,                // Pentair: R173214, etc.
           /\b(fc-\d{4})\b/i,              // Filbur: FC-1234, etc.
           /\b4\s*x\s*(c-\d{4})\b/i,       // Multi-pack: 4 x C-7468
+          /\b(filbur[\s-]?fc[\s-]?\d{4})\b/i,   // Filbur: Filbur FC-1234
+          /replacement.*?(pjan\d+)/i,            // Extract from "replacement: PJAN115"
         ];
 
         for (const pattern of patterns) {
