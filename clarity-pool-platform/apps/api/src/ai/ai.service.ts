@@ -992,30 +992,53 @@ Important:
       if (candidates.length === 0) return null;
       if (candidates.length === 1) return candidates[0];
       
-      // Score based on data completeness and quality
-      return candidates.reduce((best, current) => {
+      // Validation function
+      const isValidDetection = (equipment: any) => {
+        // Invalid if brand and model are identical (common AI error)
+        if (equipment.brand && equipment.model && 
+            equipment.brand.toLowerCase() === equipment.model.toLowerCase()) {
+          return false;
+        }
+        
+        // Invalid if brand is actually a product name pattern
+        if (equipment.brand && /^[a-z]/i.test(equipment.brand) && 
+            /[A-Z][a-z]+[A-Z]/.test(equipment.brand)) {
+          // Pattern like "iChlor" or "IntelliFlo" suggests product name, not brand
+          return false;
+        }
+        
+        return true;
+      };
+      
+      // First, prefer valid detections
+      const validCandidates = candidates.filter(isValidDetection);
+      if (validCandidates.length === 1) return validCandidates[0];
+      
+      // If multiple valid candidates or no valid ones, use scoring
+      const scoringCandidates = validCandidates.length > 0 ? validCandidates : candidates;
+      
+      return scoringCandidates.reduce((best, current) => {
         const score = (equipment: any) => {
           let points = 0;
           
-          // Prefer entries with serial numbers (most specific)
-          if (equipment.serialNumber) points += 100;
+          // Strongly prefer valid detections
+          if (isValidDetection(equipment)) points += 200;
           
-          // Prefer entries where brand != model (indicates proper parsing)
-          if (equipment.brand && equipment.model && 
-              equipment.brand.toLowerCase() !== equipment.model.toLowerCase()) {
-            points += 50;
-          }
+          // Prefer entries with serial numbers
+          if (equipment.serialNumber) points += 50;
           
-          // Prefer reasonable length models (not too short, not too long)
+          // Prefer entries where brand is capitalized like a company name
+          if (equipment.brand && /^[A-Z][a-zA-Z]+/.test(equipment.brand)) points += 30;
+          
+          // Prefer complete data
+          if (equipment.equipmentSubtype) points += 20;
+          if (equipment.condition && equipment.condition !== 'unknown') points += 10;
+          
+          // Model length scoring
           if (equipment.model) {
             const len = equipment.model.length;
-            if (len >= 5 && len <= 20) points += 30;
-            else if (len > 20) points -= 20; // Penalize overly long models
+            if (len >= 5 && len <= 25) points += 20;
           }
-          
-          // Prefer entries with more complete data
-          if (equipment.condition && equipment.condition !== 'unknown') points += 10;
-          if (equipment.equipmentSubtype) points += 10;
           
           return points;
         };
@@ -1023,9 +1046,9 @@ Important:
         const currentScore = score(current);
         const bestScore = score(best);
         
-        if (currentScore !== bestScore) {
-          this.logger.debug(`${type} scoring: "${current.brand} ${current.model}" (${currentScore}) vs "${best.brand} ${best.model}" (${bestScore})`);
-        }
+        this.logger.debug(
+          `${type} comparison: "${current.brand}/${current.model}" (${currentScore}) vs "${best.brand}/${best.model}" (${bestScore})`
+        );
         
         return currentScore > bestScore ? current : best;
       });
@@ -1074,6 +1097,37 @@ Important:
         }
       }
     });
+
+    // Validate and log final selections
+    const validateSelection = (type: string, equipment: any) => {
+      if (!equipment) return;
+      
+      // Check for brand/model confusion
+      if (equipment.brand === equipment.model) {
+        this.logger.warn(
+          `⚠️ ${type} has identical brand/model: "${equipment.brand}". This suggests incorrect parsing.`
+        );
+      }
+      
+      // Check for product name as brand
+      if (equipment.brand && equipment.model && 
+          equipment.model.toLowerCase().includes(equipment.brand.toLowerCase())) {
+        this.logger.warn(
+          `⚠️ ${type} brand "${equipment.brand}" appears to be part of model "${equipment.model}". Possible product/brand confusion.`
+        );
+      }
+      
+      this.logger.log(
+        `✅ ${type} selected: Brand="${equipment.brand}", Model="${equipment.model}", Serial="${equipment.serialNumber || 'none'}"`
+      );
+    };
+
+    // Validate all selections
+    validateSelection('Pump', pump);
+    validateSelection('Filter', filter);
+    validateSelection('Heater', heater);
+    validateSelection('Sanitizer', sanitizer);
+    validateSelection('Timer', timer);
 
     // Use pump as base or first equipment
     const primaryEquipment = pump || filter || analyzedEquipment[0];
@@ -1190,6 +1244,22 @@ Important:
 ${equipmentType ? `The user indicates this is a ${equipmentType}.` : ''}
 
 CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
+
+CRITICAL BRAND vs MODEL DISTINCTION:
+1. BRAND = The manufacturer company name (Pentair, Hayward, Jandy, etc.)
+2. MODEL = The specific product name/number
+
+COMMON CONFUSIONS TO AVOID:
+- If you see "iChlor" -> Brand: "Pentair", Model: "iChlor [number]"
+- If you see "IntelliFlo" -> Brand: "Pentair", Model: "IntelliFlo [variant]"
+- If you see "AquaRite" -> Brand: "Hayward", Model: "AquaRite [model]"
+- If the equipment shows a product name that could be confused with a brand:
+  * Look for actual manufacturer logos or text
+  * The brand is the COMPANY that makes the product
+  * The model is the PRODUCT NAME
+
+VALIDATION RULE: If brand and model are identical, you've likely made an error.
+Look more carefully for the actual manufacturer name.
 
 EQUIPMENT TYPE DETECTION (MUST match these exact values):
 PUMPS - Return equipment_subtype as one of:
@@ -1895,5 +1965,21 @@ Return this exact JSON structure:
     ).length;
     const totalFields = Object.keys(readings).length;
     return Math.round((nonNullValues / totalFields) * 100);
+  }
+
+  private getValidationPrompt(): string {
+    return `
+You are a pool equipment expert validator. Your ONLY job is to verify if the brand/manufacturer is correct.
+
+Given the following equipment detection, answer with ONLY "correct" or the corrected brand name.
+
+Rules:
+- iChlor products are made by Pentair
+- IntelliFlo pumps are made by Pentair  
+- AquaRite systems are made by Hayward
+- The brand must be the COMPANY name, not the product name
+
+Equipment: {brand} {model}
+Response (ONLY the word "correct" OR the correct brand name):`;
   }
 }
