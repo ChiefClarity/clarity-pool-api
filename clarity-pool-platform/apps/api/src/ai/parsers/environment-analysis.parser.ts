@@ -131,7 +131,7 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
       vegetation: {
         treesPresent: data.vegetation?.trees_present || false,
         treeCount: data.vegetation?.tree_count || 0,
-        treeTypes: data.vegetation?.tree_types || [],
+        treeTypes: this.enhanceTreeTypes(data.vegetation?.tree_types || []),
         proximityToPool: data.vegetation?.proximity_to_pool || 'far',
         overhangRisk: data.vegetation?.overhang_risk || 'none',
         debrisRisk: data.vegetation?.debris_risk || 'low',
@@ -177,5 +177,27 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
     return shadeStructures.some(structure => 
       structure.toLowerCase().includes('pergola')
     );
+  }
+
+  private enhanceTreeTypes(types: string[]): string[] {
+    // Filter out generic "unknown" if we have specific types
+    const specificTypes = types.filter(type => 
+      type.toLowerCase() !== 'unknown' && 
+      type.toLowerCase() !== 'tree'
+    );
+    
+    // If we have specific types, use them
+    if (specificTypes.length > 0) {
+      return specificTypes;
+    }
+    
+    // If all unknown, provide a more helpful response
+    if (types.length > 0 && types.every(type => 
+      type.toLowerCase() === 'unknown' || type.toLowerCase() === 'tree'
+    )) {
+      return ['Trees detected - species identification pending'];
+    }
+    
+    return types;
   }
 }

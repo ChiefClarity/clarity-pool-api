@@ -1752,14 +1752,21 @@ Format your response as a JSON object with these sections:
       weatherData?: any;
     }
   ): Promise<any> {
+    const analysisId = `env_${sessionId}_${Date.now()}`;
+    const startTime = Date.now();
+    
     try {
-      this.logger.log('🌳 [AI Service] Environment analysis request:', {
+      this.logger.log('🌳 [AI Service] Environment analysis started:', {
+        analysisId,
         imageCount: images.length,
         sessionId,
+        hasContext: !!context,
+        contextData: {
+          satelliteTreeCount: context?.satelliteData?.propertyFeatures?.treeCount,
+          weatherRainfall: context?.weatherData?.avgRainfall,
+        },
         timestamp: new Date().toISOString(),
       });
-      
-      this.logger.log(`Analyzing pool environment for session: ${sessionId}`);
 
       const uploadedImages = [];
 
@@ -1793,17 +1800,32 @@ Format your response as a JSON object with these sections:
 
           const parsedResult = this.environmentParser.parse(result);
 
-          this.logger.log('🌳 [AI Service] Environment analysis complete:', {
+          this.logger.log('✅ [AI Service] Environment analysis complete:', {
+            analysisId,
             vegetationDetected: parsedResult.vegetation?.treesPresent,
             treeCount: parsedResult.vegetation?.treeCount,
+            treeTypes: parsedResult.vegetation?.treeTypes,
             hasScreenEnclosure: parsedResult.structures?.screenEnclosure,
+            poolOrientation: parsedResult.structures?.poolOrientation,
             maintenanceChallenges: parsedResult.maintenanceChallenges?.length || 0,
+            processingTime: Date.now() - startTime,
+            dataWillBeStoredFor: {
+              comprehensiveReport: true,
+              maintenancePrediction: true,
+              pricingCalculation: true,
+            },
           });
 
           return {
             success: true,
+            analysisId,
             imageUrls: uploadedImages,
             analysis: parsedResult,
+            metadata: {
+              timestamp: new Date().toISOString(),
+              sessionId,
+              processingTimeMs: Date.now() - startTime,
+            },
           };
         } catch (error) {
           lastError = error;
@@ -1812,7 +1834,7 @@ Format your response as a JSON object with these sections:
 
       throw new Error(`Failed to analyze environment: ${lastError?.message}`);
     } catch (error) {
-      this.logger.error('Environment analysis failed:', error);
+      this.logger.error(`❌ [AI Service] Environment analysis failed [${analysisId}]:`, error);
       throw new BadRequestException('Failed to analyze pool environment');
     }
   }
@@ -1852,7 +1874,7 @@ Return this exact JSON structure:
   "vegetation": {
     "trees_present": true/false,
     "tree_count": number,
-    "tree_types": ["oak", "palm", etc],
+    "tree_types": ["specific species like oak, palm, pine, cypress, magnolia, etc"],
     "proximity_to_pool": "close|moderate|far",
     "overhang_risk": "none|low|medium|high",
     "debris_risk": "low|medium|high"
@@ -1878,11 +1900,72 @@ Return this exact JSON structure:
   "recommendations": ["specific recommendations"]
 }
 
-IMPORTANT: 
-- Detect if pool has a screen enclosure (pool cage/lanai). Look for mesh screening or aluminum frame structures around the pool.
-- Assess screen enclosure condition if present.
-- Determine pool orientation based on property layout, shadows, and sun position.
-- Identify all shade structures that affect pool sun exposure.`;
+IMPORTANT ANALYSIS INSTRUCTIONS:
+1. SCREEN ENCLOSURE: Look for aluminum frame with mesh screening (pool cage/lanai)
+2. POOL ORIENTATION: Analyze shadows, sun position, and house orientation:
+   - Morning shadows on west side = pool faces east
+   - Afternoon shadows on east side = pool faces west
+   - Look at house position relative to pool
+3. TREE IDENTIFICATION: Be specific with species:
+   - Palm trees: Identify type (Royal Palm, Coconut Palm, Date Palm, etc)
+   - Oak trees: Live Oak, Water Oak, Laurel Oak
+   - Pine trees: Slash Pine, Longleaf Pine
+   - Other Florida trees: Cypress, Magnolia, Mahogany, Gumbo Limbo
+4. Consider all visible environmental factors for maintenance impact`;
+  }
+
+  private getWeatherPrompt(lat: number, lng: number, address: string): string {
+    return `Analyze weather and pollen patterns for pool maintenance planning at this location:
+
+Location: ${address}
+Coordinates: ${lat}, ${lng}
+
+Based on this Florida location, provide comprehensive weather and pollen data.
+Consider typical Florida weather patterns, seasonal variations, and regional differences.
+
+CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
+
+Return this exact JSON structure:
+{
+  "location": {
+    "city": "city name",
+    "state": "FL",
+    "coordinates": {
+      "lat": ${lat},
+      "lng": ${lng}
+    }
+  },
+  "weather": {
+    "annual_rainfall": number (inches),
+    "wind_patterns": "description of prevailing winds"
+  },
+  "seasonal": {
+    "summer": {
+      "avg_temp": number,
+      "humidity": number
+    },
+    "winter": {
+      "avg_temp": number,
+      "humidity": number
+    },
+    "spring": {
+      "avg_temp": number,
+      "humidity": number
+    },
+    "fall": {
+      "avg_temp": number,
+      "humidity": number
+    }
+  },
+  "pollen": {
+    "current_level": "low|moderate|high|very high",
+    "main_types": ["Oak", "Pine", "Grass", etc],
+    "forecast": "seasonal pattern description"
+  }
+}
+
+Use typical Florida climate data for the region. South Florida is more tropical, 
+North Florida more temperate. Consider proximity to coast for wind patterns.`;
   }
 
   async analyzeSkimmers(images: string[], sessionId: string): Promise<any> {
@@ -2101,37 +2184,73 @@ Return this exact JSON structure:
         }
       }`;
 
-      // Use provider fallback system
+      // Weather analysis doesn't use images - handle differently
       let lastError: Error | null = null;
-      let analysisResult = null;
+      let analysisResult: any = null;
 
-      for (const provider of this.generalAIProviders) {
-        if (!provider.available) {
-          this.logger.log(
-            `⏭️ [AI Service] Skipping ${provider.name} - not available`,
-          );
-          continue;
-        }
-
-        this.logger.log(
-          `🤖 [AI Service] Attempting weather analysis with ${provider.name}...`,
+      // Try text-based analysis with available providers
+      try {
+        const weatherPrompt = this.getWeatherPrompt(
+          location?.lat || 0,
+          location?.lng || 0,
+          formattedAddress
         );
 
-        try {
-          const aiResponse = await provider.analyze('', prompt);
-          analysisResult = this.weatherPollenParser.parse(aiResponse);
+        // Use Gemini's text generation for weather data
+        if (this.genAI) {
+          try {
+            const model = this.genAI.getGenerativeModel({
+              model: 'gemini-1.5-flash',
+            });
 
-          this.logger.log(
-            `✅ [AI Service] ${provider.name} weather analysis succeeded in ${Date.now() - startTime}ms`,
-          );
-          break;
-        } catch (error) {
-          lastError = error;
-          this.logger.error(
-            `❌ [AI Service] ${provider.name} weather analysis failed:`,
-            error,
-          );
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            
+            this.logger.log('🌤️ [AI Service] Gemini weather response received');
+            analysisResult = this.weatherPollenParser.parse(text);
+            
+            this.logger.log(
+              `✅ [AI Service] Gemini weather analysis succeeded in ${Date.now() - startTime}ms`,
+            );
+          } catch (error) {
+            this.logger.error('Gemini weather analysis failed:', error);
+            lastError = error;
+          }
         }
+
+        // Fallback to Claude if Gemini fails
+        if (!analysisResult && this.anthropic) {
+          try {
+            const response = await this.anthropic.messages.create({
+              model: 'claude-3-opus-20240229',
+              max_tokens: 1024,
+              messages: [
+                {
+                  role: 'user',
+                  content: prompt,
+                },
+              ],
+            });
+
+            const text = response.content[0].type === 'text' 
+              ? response.content[0].text 
+              : '';
+            
+            this.logger.log('🌤️ [AI Service] Claude weather response received');
+            analysisResult = this.weatherPollenParser.parse(text);
+            
+            this.logger.log(
+              `✅ [AI Service] Claude weather analysis succeeded in ${Date.now() - startTime}ms`,
+            );
+          } catch (error) {
+            this.logger.error('Claude weather analysis failed:', error);
+            lastError = error;
+          }
+        }
+      } catch (error) {
+        this.logger.error('Weather analysis error:', error);
+        lastError = error;
       }
 
       if (!analysisResult) {
