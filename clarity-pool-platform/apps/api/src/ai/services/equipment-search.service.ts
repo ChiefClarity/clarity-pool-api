@@ -20,7 +20,7 @@ export class EquipmentSearchService {
       hasApiKey: !!this.apiKey,
       apiKeyLength: this.apiKey?.length,
       searchEngineId: this.searchEngineId,
-      query: `${brand} ${model} pool equipment specifications`
+      query: `${brand} ${model} pool equipment specifications`,
     });
 
     if (!this.searchEngineId) {
@@ -37,13 +37,13 @@ export class EquipmentSearchService {
       const searchQueries = [
         `${brand} ${model} replacement filter cartridge model number`,
         `${brand} ${model} filter element part number`,
-        `what cartridge fits ${brand} ${model} filter`
+        `what cartridge fits ${brand} ${model} filter`,
       ];
 
       // Try multiple queries
       for (const query of searchQueries) {
         this.logger.log(`Searching: ${query}`);
-        
+
         const response = await axios.get(
           'https://www.googleapis.com/customsearch/v1',
           {
@@ -56,17 +56,22 @@ export class EquipmentSearchService {
           },
         );
 
-        this.logger.debug(`Search returned ${response.data?.items?.length || 0} results`);
+        this.logger.debug(
+          `Search returned ${response.data?.items?.length || 0} results`,
+        );
         if (response.data?.items?.[0]) {
-          this.logger.debug('First result snippet:', response.data.items[0].snippet);
+          this.logger.debug(
+            'First result snippet:',
+            response.data.items[0].snippet,
+          );
         }
-        
+
         const extracted = this.extractEquipmentData(
           response.data?.items || [],
           brand,
           model,
         );
-        
+
         if (extracted?.replacementCartridge) {
           return extracted;
         }
@@ -75,7 +80,7 @@ export class EquipmentSearchService {
       // If no cartridge found, do a general search
       const generalQuery = `${brand} ${model} pool equipment specifications`;
       this.logger.log(`Searching (general): ${generalQuery}`);
-      
+
       const response = await axios.get(
         'https://www.googleapis.com/customsearch/v1',
         {
@@ -96,8 +101,12 @@ export class EquipmentSearchService {
     } catch (error: any) {
       // Enhanced error logging for debugging
       if (error.response?.status === 403) {
-        this.logger.error('Google Custom Search API 403 Error - Possible causes:');
-        this.logger.error('1. Custom Search API not enabled in Google Cloud Console');
+        this.logger.error(
+          'Google Custom Search API 403 Error - Possible causes:',
+        );
+        this.logger.error(
+          '1. Custom Search API not enabled in Google Cloud Console',
+        );
         this.logger.error('2. API key restrictions blocking the request');
         this.logger.error('3. Search Engine ID misconfigured');
         this.logger.error(`Full error: ${JSON.stringify(error.response.data)}`);
@@ -144,9 +153,9 @@ export class EquipmentSearchService {
       ) {
         // Generic part number patterns
         const patterns = [
-          /\b([A-Z]{1,5}[\-\s]?\d{2,6}[A-Z]?)\b/g,  // PJAN100, C-7468, FC-1234A
-          /\b(\d{1,2}[\-\s]?[A-Z]\d{2,6})\b/g,      // 4-C7468, 2-A100
-          /\b([A-Z]\d{2,6}[\-\s]?[A-Z]{1,3})\b/g,   // R173214-XRE
+          /\b([A-Z]{1,5}[\-\s]?\d{2,6}[A-Z]?)\b/g, // PJAN100, C-7468, FC-1234A
+          /\b(\d{1,2}[\-\s]?[A-Z]\d{2,6})\b/g, // 4-C7468, 2-A100
+          /\b([A-Z]\d{2,6}[\-\s]?[A-Z]{1,3})\b/g, // R173214-XRE
         ];
 
         const extractedParts = new Set<string>();
@@ -162,53 +171,66 @@ export class EquipmentSearchService {
         }
 
         // Validate extracted parts
-        const validParts = Array.from(extractedParts).filter(part => {
+        const validParts = Array.from(extractedParts).filter((part) => {
           // Must have both letters and numbers
           const hasLetters = /[A-Z]/.test(part);
           const hasNumbers = /\d/.test(part);
           const reasonableLength = part.length >= 4 && part.length <= 15;
-          
+
           // Exclude generic words
-          const genericWords = ['cartridge', 'cartridges', 'filter', 'filters', 'replacement', 'element'];
-          const isGeneric = genericWords.some(word => 
-            part.toLowerCase() === word
+          const genericWords = [
+            'cartridge',
+            'cartridges',
+            'filter',
+            'filters',
+            'replacement',
+            'element',
+          ];
+          const isGeneric = genericWords.some(
+            (word) => part.toLowerCase() === word,
           );
-          
+
           return hasLetters && hasNumbers && reasonableLength && !isGeneric;
         });
 
         // Extract the most likely cartridge model from results
         if (validParts.length > 0) {
           // Score each part based on pattern characteristics
-          const scoredParts = validParts.map(part => {
+          const scoredParts = validParts.map((part) => {
             let score = 0;
-            
+
             // Common patterns get higher scores
             if (/^[A-Z]{1,5}[\-]?\d{2,5}$/.test(part)) score += 20; // Like PJAN115, C-7468
             if (/^\d+[A-Z]+\d+$/.test(part)) score += 15; // Like 4C7468
             if (part.includes('-')) score += 5; // Dashes are common
-            
+
             // Length preferences
             if (part.length >= 5 && part.length <= 10) score += 10;
-            
+
             // Alphanumeric balance
             const letters = (part.match(/[A-Z]/g) || []).length;
             const numbers = (part.match(/\d/g) || []).length;
-            if (letters > 0 && numbers > 0 && Math.abs(letters - numbers) < 4) score += 5;
-            
+            if (letters > 0 && numbers > 0 && Math.abs(letters - numbers) < 4)
+              score += 5;
+
             return { part, score };
           });
-          
+
           // Sort by score and take the best one
           const sorted = scoredParts.sort((a, b) => b.score - a.score);
-          
+
           if (sorted.length > 0 && sorted[0].score >= 10) {
             data.replacementCartridge = sorted[0].part;
-            this.logger.log(`Selected cartridge: ${data.replacementCartridge} (score: ${sorted[0].score})`);
-            
+            this.logger.log(
+              `Selected cartridge: ${data.replacementCartridge} (score: ${sorted[0].score})`,
+            );
+
             // Log other candidates for debugging
             if (sorted.length > 1) {
-              this.logger.debug('Other candidates:', sorted.slice(1, 4).map(s => `${s.part}(${s.score})`));
+              this.logger.debug(
+                'Other candidates:',
+                sorted.slice(1, 4).map((s) => `${s.part}(${s.score})`),
+              );
             }
           }
         }

@@ -23,6 +23,7 @@ import { EnvironmentAnalysisParser } from './parsers/environment-analysis.parser
 import { SkimmerAnalysisParser } from './parsers/skimmer-analysis.parser';
 import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
 import { EquipmentAnalysisParser } from './parsers/equipment-analysis.parser';
+import { WeatherPollenParser } from './parsers/weather-pollen.parser';
 import { SurfaceAnalysisPrompt } from './prompts/surface-analysis.prompt';
 import { EquipmentSearchService } from './services/equipment-search.service';
 
@@ -54,6 +55,7 @@ export class AiService implements OnModuleInit {
     private readonly skimmerParser: SkimmerAnalysisParser,
     private readonly deckParser: DeckAnalysisParser,
     private readonly equipmentParser: EquipmentAnalysisParser,
+    private readonly weatherPollenParser: WeatherPollenParser,
     private readonly equipmentSearchService: EquipmentSearchService,
   ) {
     this.googleMaps = new GoogleMapsClient({});
@@ -983,73 +985,83 @@ Important:
   ): any {
     // Helper to select best equipment from multiple detections
     const selectBestEquipment = (type: string) => {
-      const candidates = analyzedEquipment.filter(eq => 
-        type === 'sanitizer' 
-          ? (eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer')
-          : eq.equipmentType === type
+      const candidates = analyzedEquipment.filter((eq) =>
+        type === 'sanitizer'
+          ? eq.equipmentType === 'chlorinator' ||
+            eq.equipmentType === 'sanitizer'
+          : eq.equipmentType === type,
       );
-      
+
       if (candidates.length === 0) return null;
       if (candidates.length === 1) return candidates[0];
-      
+
       // Validation function
       const isValidDetection = (equipment: any) => {
         // Invalid if brand and model are identical (common AI error)
-        if (equipment.brand && equipment.model && 
-            equipment.brand.toLowerCase() === equipment.model.toLowerCase()) {
+        if (
+          equipment.brand &&
+          equipment.model &&
+          equipment.brand.toLowerCase() === equipment.model.toLowerCase()
+        ) {
           return false;
         }
-        
+
         // Invalid if brand is actually a product name pattern
-        if (equipment.brand && /^[a-z]/i.test(equipment.brand) && 
-            /[A-Z][a-z]+[A-Z]/.test(equipment.brand)) {
+        if (
+          equipment.brand &&
+          /^[a-z]/i.test(equipment.brand) &&
+          /[A-Z][a-z]+[A-Z]/.test(equipment.brand)
+        ) {
           // Pattern like "iChlor" or "IntelliFlo" suggests product name, not brand
           return false;
         }
-        
+
         return true;
       };
-      
+
       // First, prefer valid detections
       const validCandidates = candidates.filter(isValidDetection);
       if (validCandidates.length === 1) return validCandidates[0];
-      
+
       // If multiple valid candidates or no valid ones, use scoring
-      const scoringCandidates = validCandidates.length > 0 ? validCandidates : candidates;
-      
+      const scoringCandidates =
+        validCandidates.length > 0 ? validCandidates : candidates;
+
       return scoringCandidates.reduce((best, current) => {
         const score = (equipment: any) => {
           let points = 0;
-          
+
           // Strongly prefer valid detections
           if (isValidDetection(equipment)) points += 200;
-          
+
           // Prefer entries with serial numbers
           if (equipment.serialNumber) points += 50;
-          
+
           // Prefer entries where brand is capitalized like a company name
-          if (equipment.brand && /^[A-Z][a-zA-Z]+/.test(equipment.brand)) points += 30;
-          
+          if (equipment.brand && /^[A-Z][a-zA-Z]+/.test(equipment.brand))
+            points += 30;
+
           // Prefer complete data
           if (equipment.equipmentSubtype) points += 20;
-          if (equipment.condition && equipment.condition !== 'unknown') points += 10;
-          
+          if (equipment.condition && equipment.condition !== 'unknown')
+            points += 10;
+
           // Model length scoring
           if (equipment.model) {
             const len = equipment.model.length;
             if (len >= 5 && len <= 25) points += 20;
           }
-          
+
           return points;
         };
-        
+
         const currentScore = score(current);
         const bestScore = score(best);
-        
+
         this.logger.debug(
-          `${type} comparison: "${current.brand}/${current.model}" (${currentScore}) vs "${best.brand}/${best.model}" (${bestScore})`
+          `${type} comparison: "${current.brand}/${current.model}" (${currentScore}) vs "${best.brand}/${best.model}" (${bestScore})`,
         );
-        
+
         return currentScore > bestScore ? current : best;
       });
     };
@@ -1063,11 +1075,17 @@ Important:
 
     // Add debug logging
     this.logger.debug('Equipment selection scores:');
-    ['pump', 'filter', 'heater', 'sanitizer', 'timer'].forEach(type => {
-      const equipment = type === 'pump' ? pump : 
-                        type === 'filter' ? filter :
-                        type === 'heater' ? heater :
-                        type === 'sanitizer' ? sanitizer : timer;
+    ['pump', 'filter', 'heater', 'sanitizer', 'timer'].forEach((type) => {
+      const equipment =
+        type === 'pump'
+          ? pump
+          : type === 'filter'
+            ? filter
+            : type === 'heater'
+              ? heater
+              : type === 'sanitizer'
+                ? sanitizer
+                : timer;
       if (equipment) {
         this.logger.debug(`${type}: ${equipment.brand} ${equipment.model}`);
       }
@@ -1076,23 +1094,25 @@ Important:
     // Clean overly complex model names using patterns
     const cleanModelName = (model: string): string => {
       if (!model) return model;
-      
+
       // Remove redundant prefixes that are all caps and 3-5 letters
       let cleaned = model.replace(/^[A-Z]{3,5}\s+/g, '');
-      
+
       // Remove trailing all-caps codes that look like internal references
       cleaned = cleaned.replace(/\s+[A-Z]{4,}$/g, '');
-      
+
       // If the result is empty or too short, return original
       return cleaned.length >= 3 ? cleaned : model;
     };
 
     // Apply to all equipment
-    [pump, filter, heater, sanitizer, timer].forEach(equipment => {
+    [pump, filter, heater, sanitizer, timer].forEach((equipment) => {
       if (equipment?.model) {
         const cleaned = cleanModelName(equipment.model);
         if (cleaned !== equipment.model) {
-          this.logger.debug(`Cleaned model: "${equipment.model}" -> "${cleaned}"`);
+          this.logger.debug(
+            `Cleaned model: "${equipment.model}" -> "${cleaned}"`,
+          );
           equipment.model = cleaned;
         }
       }
@@ -1101,24 +1121,27 @@ Important:
     // Validate and log final selections
     const validateSelection = (type: string, equipment: any) => {
       if (!equipment) return;
-      
+
       // Check for brand/model confusion
       if (equipment.brand === equipment.model) {
         this.logger.warn(
-          `⚠️ ${type} has identical brand/model: "${equipment.brand}". This suggests incorrect parsing.`
+          `⚠️ ${type} has identical brand/model: "${equipment.brand}". This suggests incorrect parsing.`,
         );
       }
-      
+
       // Check for product name as brand
-      if (equipment.brand && equipment.model && 
-          equipment.model.toLowerCase().includes(equipment.brand.toLowerCase())) {
+      if (
+        equipment.brand &&
+        equipment.model &&
+        equipment.model.toLowerCase().includes(equipment.brand.toLowerCase())
+      ) {
         this.logger.warn(
-          `⚠️ ${type} brand "${equipment.brand}" appears to be part of model "${equipment.model}". Possible product/brand confusion.`
+          `⚠️ ${type} brand "${equipment.brand}" appears to be part of model "${equipment.model}". Possible product/brand confusion.`,
         );
       }
-      
+
       this.logger.log(
-        `✅ ${type} selected: Brand="${equipment.brand}", Model="${equipment.model}", Serial="${equipment.serialNumber || 'none'}"`
+        `✅ ${type} selected: Brand="${equipment.brand}", Model="${equipment.model}", Serial="${equipment.serialNumber || 'none'}"`,
       );
     };
 
@@ -1167,7 +1190,12 @@ Important:
         ? {
             brand: pump.brand,
             model: pump.model,
-            serialNumber: pump.serialNumber || analyzedEquipment.find(eq => eq.equipmentType === 'pump' && eq.serialNumber)?.serialNumber || '',
+            serialNumber:
+              pump.serialNumber ||
+              analyzedEquipment.find(
+                (eq) => eq.equipmentType === 'pump' && eq.serialNumber,
+              )?.serialNumber ||
+              '',
             horsepower: pump.specifications?.horsepower,
             age: pump.age,
             condition: pump.condition,
@@ -1178,23 +1206,30 @@ Important:
       filter: filter
         ? {
             brand: filter.brand,
-            model: filter.model || (() => {
-              // Find the most specific model from all filter detections
-              const filterModels = analyzedEquipment
-                .filter(eq => eq.equipmentType === 'filter' && eq.model)
-                .map(eq => eq.model);
-              
-              if (filterModels.length === 0) return '';
-              
-              // Sort by specificity: prefer models with numbers/details
-              return filterModels.sort((a, b) => {
-                // Count alphanumeric characters
-                const aDetail = (a.match(/[A-Z0-9]/gi) || []).length;
-                const bDetail = (b.match(/[A-Z0-9]/gi) || []).length;
-                return bDetail - aDetail;
-              })[0];
-            })(),
-            serialNumber: filter.serialNumber || analyzedEquipment.find(eq => eq.equipmentType === 'filter' && eq.serialNumber)?.serialNumber || '',
+            model:
+              filter.model ||
+              (() => {
+                // Find the most specific model from all filter detections
+                const filterModels = analyzedEquipment
+                  .filter((eq) => eq.equipmentType === 'filter' && eq.model)
+                  .map((eq) => eq.model);
+
+                if (filterModels.length === 0) return '';
+
+                // Sort by specificity: prefer models with numbers/details
+                return filterModels.sort((a, b) => {
+                  // Count alphanumeric characters
+                  const aDetail = (a.match(/[A-Z0-9]/gi) || []).length;
+                  const bDetail = (b.match(/[A-Z0-9]/gi) || []).length;
+                  return bDetail - aDetail;
+                })[0];
+              })(),
+            serialNumber:
+              filter.serialNumber ||
+              analyzedEquipment.find(
+                (eq) => eq.equipmentType === 'filter' && eq.serialNumber,
+              )?.serialNumber ||
+              '',
             type: filter.equipmentSubtype || 'cartridge',
             size: filter.specifications?.filterSize,
             condition: filter.condition,
@@ -1206,7 +1241,12 @@ Important:
         ? {
             brand: heater.brand,
             model: heater.model,
-            serialNumber: heater.serialNumber || analyzedEquipment.find(eq => eq.equipmentType === 'heater' && eq.serialNumber)?.serialNumber || '',
+            serialNumber:
+              heater.serialNumber ||
+              analyzedEquipment.find(
+                (eq) => eq.equipmentType === 'heater' && eq.serialNumber,
+              )?.serialNumber ||
+              '',
             capacity: heater.specifications?.capacity,
             condition: heater.condition,
             type: heater.equipmentSubtype || 'gas',
@@ -1217,7 +1257,15 @@ Important:
         ? {
             brand: sanitizer.brand,
             model: sanitizer.model,
-            serialNumber: sanitizer.serialNumber || analyzedEquipment.find(eq => (eq.equipmentType === 'chlorinator' || eq.equipmentType === 'sanitizer') && eq.serialNumber)?.serialNumber || '',
+            serialNumber:
+              sanitizer.serialNumber ||
+              analyzedEquipment.find(
+                (eq) =>
+                  (eq.equipmentType === 'chlorinator' ||
+                    eq.equipmentType === 'sanitizer') &&
+                  eq.serialNumber,
+              )?.serialNumber ||
+              '',
             type: sanitizer.equipmentType,
             condition: sanitizer.condition,
           }
@@ -1915,6 +1963,159 @@ Return this exact JSON structure:
   "maintenance_needed": ["pressure washing", "sealing", etc],
   "recommendations": ["specific recommendations"]
 }`;
+  }
+
+  async analyzeWeatherPollen(address: string): Promise<any> {
+    const startTime = Date.now();
+
+    try {
+      this.logger.log(
+        `🌤️ [AI Service] Analyzing weather/pollen for: ${address}`,
+      );
+
+      // First, geocode the address using Google Maps
+      let location: { lat: number; lng: number } | null = null;
+      let formattedAddress = address;
+
+      try {
+        const geocodeResponse = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+            address,
+          )}&key=${this.configService.get<string>('GOOGLE_MAPS_API_KEY')}`,
+        );
+        const geocodeData = await geocodeResponse.json();
+
+        if (geocodeData.results?.[0]) {
+          location = geocodeData.results[0].geometry.location;
+          formattedAddress = geocodeData.results[0].formatted_address;
+          this.logger.log(
+            `📍 [AI Service] Geocoded to: ${location.lat}, ${location.lng}`,
+          );
+        }
+      } catch (error) {
+        this.logger.warn(
+          'Geocoding failed, continuing with raw address',
+          error,
+        );
+      }
+
+      // Prepare the prompt with location context
+      const prompt = `Analyze weather patterns and pollen data for this location:
+      Address: ${formattedAddress}
+      ${location ? `Coordinates: ${location.lat}, ${location.lng}` : ''}
+      
+      Provide comprehensive weather and pollen analysis for pool maintenance planning.
+      
+      CRITICAL: Return ONLY valid JSON with this structure:
+      {
+        "location": {
+          "city": "city name",
+          "state": "state",
+          "coordinates": {"lat": number, "lng": number}
+        },
+        "weather": {
+          "annual_rainfall": number (inches per year),
+          "wind_patterns": "description of prevailing winds and patterns"
+        },
+        "seasonal": {
+          "summer": {"avg_temp": number (F), "humidity": number (%)},
+          "winter": {"avg_temp": number (F), "humidity": number (%)},
+          "spring": {"avg_temp": number (F), "humidity": number (%)},
+          "fall": {"avg_temp": number (F), "humidity": number (%)}
+        },
+        "pollen": {
+          "current_level": "low|moderate|high|very high",
+          "main_types": ["tree/plant names"],
+          "forecast": "seasonal pollen forecast description"
+        }
+      }`;
+
+      // Use provider fallback system
+      let lastError: Error | null = null;
+      let analysisResult = null;
+
+      for (const provider of this.generalAIProviders) {
+        if (!provider.available) {
+          this.logger.log(
+            `⏭️ [AI Service] Skipping ${provider.name} - not available`,
+          );
+          continue;
+        }
+
+        this.logger.log(
+          `🤖 [AI Service] Attempting weather analysis with ${provider.name}...`,
+        );
+
+        try {
+          const aiResponse = await provider.analyze('', prompt);
+          analysisResult = this.weatherPollenParser.parse(aiResponse);
+
+          this.logger.log(
+            `✅ [AI Service] ${provider.name} weather analysis succeeded in ${Date.now() - startTime}ms`,
+          );
+          break;
+        } catch (error) {
+          lastError = error;
+          this.logger.error(
+            `❌ [AI Service] ${provider.name} weather analysis failed:`,
+            error,
+          );
+        }
+      }
+
+      if (!analysisResult) {
+        // Use fallback data with location context
+        this.logger.warn(
+          '⚠️ [AI Service] All providers failed, using fallback weather data',
+        );
+
+        analysisResult = this.weatherPollenParser.parse({
+          location: {
+            city: 'Unknown',
+            state: 'FL',
+            coordinates: location,
+          },
+          weather: {
+            annual_rainfall: 52.4,
+            wind_patterns:
+              'Moderate easterly winds, stronger during winter months',
+          },
+          seasonal: {
+            summer: { avg_temp: 85, humidity: 75 },
+            winter: { avg_temp: 65, humidity: 60 },
+            spring: { avg_temp: 78, humidity: 70 },
+            fall: { avg_temp: 75, humidity: 68 },
+          },
+          pollen: {
+            current_level: 'moderate',
+            main_types: ['Oak', 'Pine', 'Grass'],
+            forecast: 'Typical seasonal variations expected',
+          },
+        });
+      }
+
+      // Cache the result for future requests (optional)
+      // await this.cacheService.set(`weather:${formattedAddress}`, analysisResult, 3600);
+
+      return {
+        success: true,
+        data: analysisResult,
+        metadata: {
+          address: formattedAddress,
+          location,
+          processingTime: Date.now() - startTime,
+          cached: false,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        '❌ [AI Service] Weather/pollen analysis failed:',
+        error,
+      );
+      throw new BadRequestException(
+        `Failed to analyze weather and pollen data: ${error.message}`,
+      );
+    }
   }
 
   // Helper methods

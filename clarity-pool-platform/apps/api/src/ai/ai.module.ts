@@ -26,6 +26,7 @@ import { EnvironmentAnalysisParser } from './parsers/environment-analysis.parser
 import { SkimmerAnalysisParser } from './parsers/skimmer-analysis.parser';
 import { DeckAnalysisParser } from './parsers/deck-analysis.parser';
 import { EquipmentAnalysisParser } from './parsers/equipment-analysis.parser';
+import { WeatherPollenParser } from './parsers/weather-pollen.parser';
 
 @Module({
   imports: [ConfigModule, HttpModule, PrismaModule, UploadsModule],
@@ -45,6 +46,7 @@ import { EquipmentAnalysisParser } from './parsers/equipment-analysis.parser';
     SkimmerAnalysisParser,
     DeckAnalysisParser,
     EquipmentAnalysisParser,
+    WeatherPollenParser,
   ],
   exports: [
     AIAnalysisService,
