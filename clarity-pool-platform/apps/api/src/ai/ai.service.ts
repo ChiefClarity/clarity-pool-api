@@ -2097,6 +2097,16 @@ Return this exact JSON structure:
       // Cache the result for future requests (optional)
       // await this.cacheService.set(`weather:${formattedAddress}`, analysisResult, 3600);
 
+      // ADD THIS LOGGING:
+      this.logger.log('🌤️ [AI Service] Weather/Pollen Analysis Result:', {
+        location: formattedAddress,
+        rainfall: analysisResult.avgRainfall,
+        windPatterns: analysisResult.windPatterns,
+        pollenLevel: analysisResult.pollenData?.currentLevel,
+        pollenTypes: analysisResult.pollenData?.mainTypes,
+        confidence: analysisResult.confidence,
+      });
+
       return {
         success: true,
         data: analysisResult,

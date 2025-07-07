@@ -203,4 +203,3 @@ export class WeatherPollenParser extends BaseAnalysisParser<
     return 'moderate';
   }
 }
-
