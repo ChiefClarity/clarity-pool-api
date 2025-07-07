@@ -710,6 +710,16 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
           const parsedAnalysis = this.satelliteParser.parse(aiResponse);
           console.log('📊 [AI Service] Parsed analysis:', parsedAnalysis);
 
+          // Add logging for verification
+          this.logger.log(
+            '🔍 [AI Service] Final satellite analysis response:',
+            {
+              hasPoolType: !!parsedAnalysis.poolType,
+              poolType: parsedAnalysis.poolType,
+              poolDetected: parsedAnalysis.poolDetected,
+            },
+          );
+
           return {
             success: true,
             location: {
@@ -720,6 +730,7 @@ CRITICAL REMINDER: If a chemical is NOT shown on the reference chart, you MUST r
             satelliteImageUrl: uploadResult.url,
             analysis: {
               poolDetected: parsedAnalysis.poolDetected || false,
+              poolType: parsedAnalysis.poolType, // ADD THIS LINE
               poolDimensions: parsedAnalysis.poolDimensions,
               poolShape: parsedAnalysis.poolShape,
               poolFeatures: parsedAnalysis.poolFeatures,
