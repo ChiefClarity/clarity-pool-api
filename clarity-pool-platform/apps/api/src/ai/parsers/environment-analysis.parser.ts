@@ -56,6 +56,11 @@ export interface ParsedEnvironmentAnalysis {
     windExposure: string;
     privacyLevel: string;
   };
+  structures: {
+    screenEnclosure: boolean;
+    fencing: boolean;
+    pergola: boolean;
+  };
   maintenanceChallenges: string[];
   recommendations: string[];
   confidence: number;
@@ -94,6 +99,11 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
         windExposure: 'moderate',
         privacyLevel: 'partial',
       },
+      structures: {
+        screenEnclosure: false,
+        fencing: false,
+        pergola: false,
+      },
       maintenanceChallenges: [],
       recommendations: [],
       confidence: 0,
@@ -124,6 +134,11 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
           'full sun',
         windExposure: data.environmental_factors?.wind_exposure || 'moderate',
         privacyLevel: data.environmental_factors?.privacy_level || 'partial',
+      },
+      structures: {
+        screenEnclosure: false, // TODO: Parse from AI response when available
+        fencing: false,
+        pergola: false,
       },
       maintenanceChallenges: data.maintenance_challenges || [],
       recommendations: data.recommendations || [],
