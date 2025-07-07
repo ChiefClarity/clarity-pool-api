@@ -369,6 +369,12 @@ export class AiService implements OnModuleInit {
         model: 'gemini-1.5-flash',
       });
 
+      // Validate URL before fetching
+      if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+        this.logger.error(`Invalid image URL for Gemini: ${imageUrl}`);
+        throw new Error('Invalid image URL provided to Gemini');
+      }
+
       const imageResponse = await fetch(imageUrl);
       const imageBuffer = await imageResponse.arrayBuffer();
       const base64Image = Buffer.from(imageBuffer).toString('base64');
@@ -1743,6 +1749,12 @@ Format your response as a JSON object with these sections:
     sessionId: string,
   ): Promise<any> {
     try {
+      this.logger.log('🌳 [AI Service] Environment analysis request:', {
+        imageCount: images.length,
+        sessionId,
+        timestamp: new Date().toISOString(),
+      });
+      
       this.logger.log(`Analyzing pool environment for session: ${sessionId}`);
 
       const uploadedImages = [];
@@ -1776,6 +1788,13 @@ Format your response as a JSON object with these sections:
           );
 
           const parsedResult = this.environmentParser.parse(result);
+
+          this.logger.log('🌳 [AI Service] Environment analysis complete:', {
+            vegetationDetected: parsedResult.vegetation?.treesPresent,
+            treeCount: parsedResult.vegetation?.treeCount,
+            hasScreenEnclosure: parsedResult.structures?.screenEnclosure,
+            maintenanceChallenges: parsedResult.maintenanceChallenges?.length || 0,
+          });
 
           return {
             success: true,
