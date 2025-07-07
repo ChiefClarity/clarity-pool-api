@@ -171,4 +171,29 @@ export class AiController {
     this.logger.log('Received deck analysis request');
     return this.aiService.analyzeDeck(body.images, body.sessionId);
   }
+
+  @Post('analyze-weather-pollen')
+  async analyzeWeatherPollen(@Body() dto: { address: string }) {
+    this.logger.log('🌤️ [AI Controller] Weather/Pollen request received:', {
+      address: dto.address,
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      const result = await this.aiService.analyzeWeatherPollen(dto.address);
+      
+      this.logger.log('🌤️ [AI Controller] Weather/Pollen analysis complete:', {
+        address: dto.address,
+        success: result.success,
+        rainfall: result.data?.avgRainfall,
+        pollenLevel: result.data?.pollenData?.currentLevel,
+        pollenTypes: result.data?.pollenData?.mainTypes,
+      });
+      
+      return result;
+    } catch (error) {
+      this.logger.error('❌ [AI Controller] Weather/Pollen analysis failed:', error);
+      throw error;
+    }
+  }
 }
