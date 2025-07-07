@@ -1989,7 +1989,7 @@ Return this exact JSON structure:
           location = geocodeData.results[0].geometry.location;
           formattedAddress = geocodeData.results[0].formatted_address;
           this.logger.log(
-            `📍 [AI Service] Geocoded to: ${location.lat}, ${location.lng}`,
+            `📍 [AI Service] Geocoded to: ${location?.lat}, ${location?.lng}`,
           );
         }
       } catch (error) {

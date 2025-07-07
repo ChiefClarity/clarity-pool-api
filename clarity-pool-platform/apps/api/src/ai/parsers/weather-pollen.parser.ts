@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { BaseAIParser } from './base.parser';
+import { Injectable, Logger } from '@nestjs/common';
+import { BaseAnalysisParser } from './base-analysis.parser';
 import * as z from 'zod';
 
 const WeatherPollenResponseSchema = z
@@ -88,38 +88,33 @@ export interface ParsedWeatherPollenData {
 }
 
 @Injectable()
-export class WeatherPollenParser extends BaseAIParser<ParsedWeatherPollenData> {
-  protected validateResponse(
-    data: any,
-  ): z.infer<typeof WeatherPollenResponseSchema> {
-    return WeatherPollenResponseSchema.parse(data);
+export class WeatherPollenParser extends BaseAnalysisParser<
+  typeof WeatherPollenResponseSchema,
+  ParsedWeatherPollenData
+> {
+  protected readonly logger = new Logger(WeatherPollenParser.name);
+  protected readonly parserName = 'WeatherPollenParser';
+
+  protected getSchema() {
+    return WeatherPollenResponseSchema;
   }
 
-  protected handleValidationError(
-    error: z.ZodError,
-    rawData: any,
-  ): z.infer<typeof WeatherPollenResponseSchema> {
-    this.logger.warn('Weather/pollen validation failed, using defaults', {
-      errors: error.errors,
-    });
-
+  protected getDefaultResult(): ParsedWeatherPollenData {
     return {
-      location: {},
-      weather: {
-        annual_rainfall: 52.4,
-        wind_patterns: 'Moderate easterly winds',
+      avgRainfall: 52.4,
+      windPatterns: 'Moderate easterly winds',
+      seasonalFactors: {
+        summer: { avgTemp: 85, humidity: 75 },
+        winter: { avgTemp: 65, humidity: 60 },
+        spring: { avgTemp: 78, humidity: 70 },
+        fall: { avgTemp: 75, humidity: 68 },
       },
-      seasonal: {
-        summer: { avg_temp: 85, humidity: 75 },
-        winter: { avg_temp: 65, humidity: 60 },
-        spring: { avg_temp: 78, humidity: 70 },
-        fall: { avg_temp: 75, humidity: 68 },
-      },
-      pollen: {
-        current_level: 'moderate',
-        main_types: ['Oak', 'Pine', 'Grass'],
+      pollenData: {
+        currentLevel: 'moderate',
+        mainTypes: ['Oak', 'Pine', 'Grass'],
         forecast: 'Seasonal variations expected',
       },
+      confidence: 0.85,
     };
   }
 
