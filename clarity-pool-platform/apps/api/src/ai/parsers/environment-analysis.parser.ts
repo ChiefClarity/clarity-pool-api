@@ -32,6 +32,14 @@ export const EnvironmentResponseSchema = z.object({
       privacy_level: z.enum(['open', 'partial', 'private']).optional(),
     })
     .optional(),
+  structures: z
+    .object({
+      screen_enclosure: z.boolean().optional(),
+      enclosure_condition: z.enum(['excellent', 'good', 'fair', 'poor', 'none']).optional(),
+      pool_orientation: z.enum(['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'unknown']).optional(),
+      shade_structures: z.array(z.string()).optional(),
+    })
+    .optional(),
   maintenance_challenges: z.array(z.string()).optional(),
   recommendations: z.array(z.string()).optional(),
 });
@@ -60,6 +68,9 @@ export interface ParsedEnvironmentAnalysis {
     screenEnclosure: boolean;
     fencing: boolean;
     pergola: boolean;
+    enclosureCondition: string;
+    poolOrientation: string;
+    shadeStructures: string[];
   };
   maintenanceChallenges: string[];
   recommendations: string[];
@@ -103,6 +114,9 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
         screenEnclosure: false,
         fencing: false,
         pergola: false,
+        enclosureCondition: 'none',
+        poolOrientation: 'unknown',
+        shadeStructures: [],
       },
       maintenanceChallenges: [],
       recommendations: [],
@@ -136,13 +150,32 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
         privacyLevel: data.environmental_factors?.privacy_level || 'partial',
       },
       structures: {
-        screenEnclosure: false, // TODO: Parse from AI response when available
-        fencing: false,
-        pergola: false,
+        screenEnclosure: data.structures?.screen_enclosure || false,
+        fencing: this.detectFencing(data),
+        pergola: this.detectPergola(data.structures?.shade_structures),
+        enclosureCondition: data.structures?.enclosure_condition || 'none',
+        poolOrientation: data.structures?.pool_orientation || 'unknown',
+        shadeStructures: data.structures?.shade_structures || [],
       },
       maintenanceChallenges: data.maintenance_challenges || [],
       recommendations: data.recommendations || [],
       confidence: 0.85,
     };
+  }
+
+  private detectFencing(data: any): boolean {
+    // Check if fencing was mentioned in maintenance challenges or recommendations
+    const allText = [
+      ...(data.maintenance_challenges || []),
+      ...(data.recommendations || []),
+    ].join(' ').toLowerCase();
+    
+    return allText.includes('fence') || allText.includes('fencing');
+  }
+
+  private detectPergola(shadeStructures: string[] = []): boolean {
+    return shadeStructures.some(structure => 
+      structure.toLowerCase().includes('pergola')
+    );
   }
 }

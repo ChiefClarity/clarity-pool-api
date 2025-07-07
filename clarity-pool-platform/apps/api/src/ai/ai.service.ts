@@ -1747,6 +1747,10 @@ Format your response as a JSON object with these sections:
   async analyzePoolEnvironment(
     images: string[],
     sessionId: string,
+    context?: {
+      satelliteData?: any;
+      weatherData?: any;
+    }
   ): Promise<any> {
     try {
       this.logger.log('🌳 [AI Service] Environment analysis request:', {
@@ -1784,7 +1788,7 @@ Format your response as a JSON object with these sections:
           // For multiple images, we'll analyze the first one as representative
           const result = await provider.analyze(
             uploadedImages[0],
-            this.getEnvironmentPrompt(),
+            this.getEnvironmentPrompt(context),
           );
 
           const parsedResult = this.environmentParser.parse(result);
@@ -1813,9 +1817,34 @@ Format your response as a JSON object with these sections:
     }
   }
 
-  private getEnvironmentPrompt(): string {
-    return `Analyze these pool environment images as a pool maintenance expert.
+  private getEnvironmentPrompt(context?: any): string {
+    let contextSection = '';
+    
+    if (context) {
+      contextSection = `
+IMPORTANT CONTEXT FROM OTHER ANALYSES:
+${context.satelliteData ? `
+SATELLITE ANALYSIS SHOWS:
+- Trees detected from above: ${context.satelliteData.propertyFeatures?.treeCount || 0}
+- Tree proximity to pool: ${context.satelliteData.propertyFeatures?.treeProximity || 'unknown'}
+- Property size: ${context.satelliteData.propertyFeatures?.propertySize || 'unknown'}
+` : ''}
+${context.weatherData ? `
+WEATHER/CLIMATE DATA:
+- Annual rainfall: ${context.weatherData.avgRainfall || 0} inches
+- Wind patterns: ${context.weatherData.windPatterns || 'unknown'}  
+- Pollen level: ${context.weatherData.pollenData?.currentLevel || 'unknown'}
+- Main pollen types: ${context.weatherData.pollenData?.mainTypes?.join(', ') || 'none'}
+` : ''}
 
+Please VALIDATE the satellite tree count against what you see at ground level.
+If you see different tree counts, report what you actually observe.
+Consider the weather data when assessing maintenance challenges.
+`;
+    }
+
+    return `Analyze these pool environment images as a pool maintenance expert.
+${contextSection}
 CRITICAL: Return ONLY valid JSON - no markdown, no explanations.
 
 Return this exact JSON structure:
@@ -1839,9 +1868,21 @@ Return this exact JSON structure:
     "wind_exposure": "low|moderate|high",
     "privacy_level": "open|partial|private"
   },
+  "structures": {
+    "screen_enclosure": true/false,
+    "enclosure_condition": "excellent|good|fair|poor|none",
+    "pool_orientation": "north|south|east|west|northeast|northwest|southeast|southwest|unknown",
+    "shade_structures": ["pergola", "awning", "gazebo", "trees", etc]
+  },
   "maintenance_challenges": ["specific challenges"],
   "recommendations": ["specific recommendations"]
-}`;
+}
+
+IMPORTANT: 
+- Detect if pool has a screen enclosure (pool cage/lanai). Look for mesh screening or aluminum frame structures around the pool.
+- Assess screen enclosure condition if present.
+- Determine pool orientation based on property layout, shadows, and sun position.
+- Identify all shade structures that affect pool sun exposure.`;
   }
 
   async analyzeSkimmers(images: string[], sessionId: string): Promise<any> {
