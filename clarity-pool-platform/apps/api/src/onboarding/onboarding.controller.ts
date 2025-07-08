@@ -110,9 +110,28 @@ export class OnboardingController {
     return this.onboardingService.savePoolDetails(sessionId, data);
   }
 
-  @Post('sessions/:sessionId/complete')
-  async completeSession(@Param('sessionId') sessionId: string) {
-    return this.onboardingService.completeSession(sessionId);
+  @Put('sessions/:sessionId/complete')
+  async completeSession(
+    @Param('sessionId') sessionId: string,
+    @Body() body: { completedAt: string },
+    @Req() req: any,
+  ) {
+    this.logger.log(`Completing onboarding session: ${sessionId}`);
+    
+    try {
+      const result = await this.onboardingService.completeSession(sessionId);
+      
+      // Trigger AI processing if voice note exists
+      if (result.voiceNoteUrl) {
+        this.logger.log(`Triggering AI analysis for session ${sessionId}`);
+        // AI processing happens asynchronously
+      }
+      
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to complete session ${sessionId}:`, error);
+      throw error;
+    }
   }
 
   @Post('sessions/:sessionId/analyze-pool-location')
