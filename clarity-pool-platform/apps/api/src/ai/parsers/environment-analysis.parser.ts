@@ -35,8 +35,22 @@ export const EnvironmentResponseSchema = z.object({
   structures: z
     .object({
       screen_enclosure: z.boolean().optional(),
-      enclosure_condition: z.enum(['excellent', 'good', 'fair', 'poor', 'none']).optional(),
-      pool_orientation: z.enum(['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'unknown']).optional(),
+      enclosure_condition: z
+        .enum(['excellent', 'good', 'fair', 'poor', 'none'])
+        .optional(),
+      pool_orientation: z
+        .enum([
+          'north',
+          'south',
+          'east',
+          'west',
+          'northeast',
+          'northwest',
+          'southeast',
+          'southwest',
+          'unknown',
+        ])
+        .optional(),
       shade_structures: z.array(z.string()).optional(),
     })
     .optional(),
@@ -168,36 +182,42 @@ export class EnvironmentAnalysisParser extends BaseAnalysisParser<
     const allText = [
       ...(data.maintenance_challenges || []),
       ...(data.recommendations || []),
-    ].join(' ').toLowerCase();
-    
+    ]
+      .join(' ')
+      .toLowerCase();
+
     return allText.includes('fence') || allText.includes('fencing');
   }
 
   private detectPergola(shadeStructures: string[] = []): boolean {
-    return shadeStructures.some(structure => 
-      structure.toLowerCase().includes('pergola')
+    return shadeStructures.some((structure) =>
+      structure.toLowerCase().includes('pergola'),
     );
   }
 
   private enhanceTreeTypes(types: string[]): string[] {
     // Filter out generic "unknown" if we have specific types
-    const specificTypes = types.filter(type => 
-      type.toLowerCase() !== 'unknown' && 
-      type.toLowerCase() !== 'tree'
+    const specificTypes = types.filter(
+      (type) =>
+        type.toLowerCase() !== 'unknown' && type.toLowerCase() !== 'tree',
     );
-    
+
     // If we have specific types, use them
     if (specificTypes.length > 0) {
       return specificTypes;
     }
-    
+
     // If all unknown, provide a more helpful response
-    if (types.length > 0 && types.every(type => 
-      type.toLowerCase() === 'unknown' || type.toLowerCase() === 'tree'
-    )) {
+    if (
+      types.length > 0 &&
+      types.every(
+        (type) =>
+          type.toLowerCase() === 'unknown' || type.toLowerCase() === 'tree',
+      )
+    ) {
       return ['Trees detected - species identification pending'];
     }
-    
+
     return types;
   }
 }

@@ -370,7 +370,11 @@ export class AiService implements OnModuleInit {
       });
 
       // Validate URL before fetching
-      if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+      if (
+        !imageUrl ||
+        typeof imageUrl !== 'string' ||
+        !imageUrl.startsWith('http')
+      ) {
         this.logger.error(`Invalid image URL for Gemini: ${imageUrl}`);
         throw new Error('Invalid image URL provided to Gemini');
       }
@@ -1594,30 +1598,130 @@ Format your response as a JSON object with these sections:
   async transcribeVoiceNote(
     audioBase64: string,
     sessionId: string,
+    language: string = 'en-US',
   ): Promise<any> {
     try {
-      this.logger.log(`Transcribing voice note for session: ${sessionId}`);
-
-      // For now, we'll use a placeholder implementation
-      // In production, integrate with Google Speech-to-Text or OpenAI Whisper
+      this.logger.log(`🎙️ Transcribing voice note for session: ${sessionId}`);
+      this.logger.log(`Language: ${language}`);
 
       // Remove data URL prefix
       const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, '');
+      const audioBuffer = Buffer.from(base64Data, 'base64');
 
-      // Save audio file to S3 (implement audio upload in uploads service)
-      // const audioBuffer = Buffer.from(base64Data, 'base64');
+      // Upload audio to S3 first
+      const uploadResult = await this.uploadsService.uploadAudio(
+        audioBuffer,
+        'audio/webm', // Most browsers record in WebM format
+        'voice-notes',
+        {
+          sessionId,
+          language,
+          timestamp: new Date().toISOString(),
+        },
+      );
 
-      // Placeholder response
+      this.logger.log(`✅ Audio uploaded to S3: ${uploadResult.url}`);
+
+      // Try Google Cloud Speech-to-Text if available
+      if (this.googleCloudAuth.isAuthenticated()) {
+        try {
+          // Import speech client dynamically to avoid startup errors
+          const speech = await import('@google-cloud/speech');
+          const client = new speech.SpeechClient();
+
+          // Configure the request
+          const request = {
+            config: {
+              encoding: 'WEBM_OPUS' as any,
+              sampleRateHertz: 48000,
+              languageCode: language,
+              enableAutomaticPunctuation: true,
+              model: 'latest_long',
+            },
+            audio: {
+              content: base64Data,
+            },
+          };
+
+          this.logger.log('🔊 Sending to Google Speech-to-Text...');
+          const [response] = await client.recognize(request);
+
+          const transcription =
+            response.results
+              ?.map((result) => result.alternatives?.[0]?.transcript)
+              .filter(Boolean)
+              .join(' ') || '';
+
+          if (transcription) {
+            this.logger.log(
+              `✅ Transcription successful: ${transcription.substring(0, 50)}...`,
+            );
+
+            // Generate summary using AI
+            let summary = transcription;
+            if (transcription.length > 100) {
+              try {
+                const summaryPrompt = `Summarize this pool service note in 1-2 sentences: "${transcription}"`;
+
+                if (this.genAI) {
+                  const model = this.genAI.getGenerativeModel({
+                    model: 'gemini-1.5-flash',
+                  });
+                  const result = await model.generateContent(summaryPrompt);
+                  summary = result.response.text() || transcription;
+                } else if (this.anthropic) {
+                  const message = await this.anthropic.messages.create({
+                    model: 'claude-3-haiku-20240307',
+                    max_tokens: 100,
+                    messages: [{ role: 'user', content: summaryPrompt }],
+                  });
+                  summary =
+                    message.content[0].type === 'text'
+                      ? message.content[0].text
+                      : transcription;
+                }
+              } catch (error) {
+                this.logger.warn('Failed to generate summary, using full text');
+              }
+            }
+
+            return {
+              success: true,
+              transcription,
+              summary,
+              audioUrl: uploadResult.url,
+              duration: Math.round(audioBuffer.length / 6000), // Rough estimate
+              timestamp: new Date().toISOString(),
+              metadata: {
+                sessionId,
+                language,
+                aiModel: 'google-speech-to-text',
+              },
+            };
+          }
+        } catch (error) {
+          this.logger.error('Google Speech-to-Text failed:', error);
+          // Fall through to fallback
+        }
+      }
+
+      // Fallback response if transcription fails
+      this.logger.warn(
+        '⚠️ Using fallback response - transcription unavailable',
+      );
+
       return {
         success: true,
-        transcription:
-          'Voice transcription will be implemented with Google Speech-to-Text API',
-        summary: 'Audio note recorded',
-        duration: 0,
+        transcription: '[Voice note saved - transcription pending]',
+        summary: 'Voice note recorded',
+        audioUrl: uploadResult.url,
+        duration: Math.round(audioBuffer.length / 6000),
         timestamp: new Date().toISOString(),
         metadata: {
           sessionId,
-          aiModel: 'pending-integration',
+          language,
+          aiModel: 'none',
+          fallback: true,
         },
       };
     } catch (error) {
@@ -1750,11 +1854,11 @@ Format your response as a JSON object with these sections:
     context?: {
       satelliteData?: any;
       weatherData?: any;
-    }
+    },
   ): Promise<any> {
     const analysisId = `env_${sessionId}_${Date.now()}`;
     const startTime = Date.now();
-    
+
     try {
       this.logger.log('🌳 [AI Service] Environment analysis started:', {
         analysisId,
@@ -1762,7 +1866,8 @@ Format your response as a JSON object with these sections:
         sessionId,
         hasContext: !!context,
         contextData: {
-          satelliteTreeCount: context?.satelliteData?.propertyFeatures?.treeCount,
+          satelliteTreeCount:
+            context?.satelliteData?.propertyFeatures?.treeCount,
           weatherRainfall: context?.weatherData?.avgRainfall,
         },
         timestamp: new Date().toISOString(),
@@ -1807,7 +1912,8 @@ Format your response as a JSON object with these sections:
             treeTypes: parsedResult.vegetation?.treeTypes,
             hasScreenEnclosure: parsedResult.structures?.screenEnclosure,
             poolOrientation: parsedResult.structures?.poolOrientation,
-            maintenanceChallenges: parsedResult.maintenanceChallenges?.length || 0,
+            maintenanceChallenges:
+              parsedResult.maintenanceChallenges?.length || 0,
             processingTime: Date.now() - startTime,
             dataWillBeStoredFor: {
               comprehensiveReport: true,
@@ -1834,30 +1940,41 @@ Format your response as a JSON object with these sections:
 
       throw new Error(`Failed to analyze environment: ${lastError?.message}`);
     } catch (error) {
-      this.logger.error(`❌ [AI Service] Environment analysis failed [${analysisId}]:`, error);
+      this.logger.error(
+        `❌ [AI Service] Environment analysis failed [${analysisId}]:`,
+        error,
+      );
       throw new BadRequestException('Failed to analyze pool environment');
     }
   }
 
   private getEnvironmentPrompt(context?: any): string {
     let contextSection = '';
-    
+
     if (context) {
       contextSection = `
 IMPORTANT CONTEXT FROM OTHER ANALYSES:
-${context.satelliteData ? `
+${
+  context.satelliteData
+    ? `
 SATELLITE ANALYSIS SHOWS:
 - Trees detected from above: ${context.satelliteData.propertyFeatures?.treeCount || 0}
 - Tree proximity to pool: ${context.satelliteData.propertyFeatures?.treeProximity || 'unknown'}
 - Property size: ${context.satelliteData.propertyFeatures?.propertySize || 'unknown'}
-` : ''}
-${context.weatherData ? `
+`
+    : ''
+}
+${
+  context.weatherData
+    ? `
 WEATHER/CLIMATE DATA:
 - Annual rainfall: ${context.weatherData.avgRainfall || 0} inches
 - Wind patterns: ${context.weatherData.windPatterns || 'unknown'}  
 - Pollen level: ${context.weatherData.pollenData?.currentLevel || 'unknown'}
 - Main pollen types: ${context.weatherData.pollenData?.mainTypes?.join(', ') || 'none'}
-` : ''}
+`
+    : ''
+}
 
 Please VALIDATE the satellite tree count against what you see at ground level.
 If you see different tree counts, report what you actually observe.
@@ -2193,7 +2310,7 @@ Return this exact JSON structure:
         const weatherPrompt = this.getWeatherPrompt(
           location?.lat || 0,
           location?.lng || 0,
-          formattedAddress
+          formattedAddress,
         );
 
         // Use Gemini's text generation for weather data
@@ -2206,10 +2323,10 @@ Return this exact JSON structure:
             const result = await model.generateContent(prompt);
             const response = await result.response;
             const text = response.text();
-            
+
             this.logger.log('🌤️ [AI Service] Gemini weather response received');
             analysisResult = this.weatherPollenParser.parse(text);
-            
+
             this.logger.log(
               `✅ [AI Service] Gemini weather analysis succeeded in ${Date.now() - startTime}ms`,
             );
@@ -2233,13 +2350,14 @@ Return this exact JSON structure:
               ],
             });
 
-            const text = response.content[0].type === 'text' 
-              ? response.content[0].text 
-              : '';
-            
+            const text =
+              response.content[0].type === 'text'
+                ? response.content[0].text
+                : '';
+
             this.logger.log('🌤️ [AI Service] Claude weather response received');
             analysisResult = this.weatherPollenParser.parse(text);
-            
+
             this.logger.log(
               `✅ [AI Service] Claude weather analysis succeeded in ${Date.now() - startTime}ms`,
             );

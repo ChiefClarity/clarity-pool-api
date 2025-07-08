@@ -174,6 +174,65 @@ export class UploadsService {
     }
   }
 
+  async uploadAudio(
+    buffer: Buffer,
+    mimeType: string,
+    folder: string,
+    metadata: Record<string, string> = {},
+  ): Promise<{ url: string; key: string }> {
+    try {
+      this.logger.log(`Starting audio upload for folder: ${folder}`);
+      this.logger.log(`Buffer size: ${buffer.length}, MimeType: ${mimeType}`);
+
+      // Generate unique key
+      const timestamp = Date.now();
+      const uniqueId = uuidv4();
+      const extension = mimeType === 'audio/webm' ? 'webm' : 'mp3';
+      const key = `${folder}/${timestamp}-${uniqueId}.${extension}`;
+      this.logger.log(`Generated S3 key: ${key}`);
+
+      // Upload audio file
+      try {
+        this.logger.log(`Uploading to S3 bucket: ${this.bucketName}`);
+        await this.s3Client.send(
+          new PutObjectCommand({
+            Bucket: this.bucketName,
+            Key: key,
+            Body: buffer,
+            ContentType: mimeType,
+            Metadata: {
+              ...metadata,
+              uploadedAt: new Date().toISOString(),
+            },
+          }),
+        );
+        this.logger.log('Audio uploaded successfully');
+      } catch (s3Error) {
+        this.logger.error('S3 upload failed:', s3Error);
+        this.logger.error(
+          'S3 Error details:',
+          JSON.stringify(s3Error, null, 2),
+        );
+        throw new Error(`S3 upload failed: ${s3Error.message}`);
+      }
+
+      const baseUrl = `https://${this.bucketName}.s3.amazonaws.com`;
+      this.logger.log(`Audio uploaded successfully: ${key}`);
+
+      return {
+        url: `${baseUrl}/${key}`,
+        key,
+      };
+    } catch (error) {
+      this.logger.error('Audio upload failed:', error);
+      this.logger.error('Error type:', error.constructor.name);
+      this.logger.error('Error stack:', error.stack);
+
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(`Failed to upload audio: ${error.message}`);
+    }
+  }
+
   async deleteImage(key: string): Promise<void> {
     try {
       await this.s3Client.send(

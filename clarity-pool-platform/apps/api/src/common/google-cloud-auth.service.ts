@@ -185,4 +185,8 @@ export class GoogleCloudAuthService implements OnModuleInit {
   isUsingSecureAuth(): boolean {
     return this.authMethod !== GoogleAuthMethod.API_KEY;
   }
+
+  isAuthenticated(): boolean {
+    return this.initialized && (!!this.googleAuth || !!this.apiKey);
+  }
 }

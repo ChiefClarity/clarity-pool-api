@@ -140,10 +140,34 @@ export class AiController {
 
   @Post('transcribe-voice-note')
   async transcribeVoiceNote(
-    @Body() body: { audio: string; sessionId: string },
+    @Body()
+    dto: {
+      audio: string; // base64
+      sessionId: string;
+      language?: string;
+    },
   ) {
-    this.logger.log('Received voice transcription request');
-    return this.aiService.transcribeVoiceNote(body.audio, body.sessionId);
+    this.logger.log('🎙️ [AI Controller] Voice note transcription requested:', {
+      sessionId: dto.sessionId,
+      language: dto.language || 'en-US',
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      const result = await this.aiService.transcribeVoiceNote(
+        dto.audio,
+        dto.sessionId,
+        dto.language || 'en-US',
+      );
+
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Voice transcription failed:', error);
+      throw error;
+    }
   }
 
   @Post('analyze-pool-surface')
@@ -181,7 +205,7 @@ export class AiController {
 
     try {
       const result = await this.aiService.analyzeWeatherPollen(dto.address);
-      
+
       this.logger.log('🌤️ [AI Controller] Weather/Pollen analysis complete:', {
         address: dto.address,
         success: result.success,
@@ -189,10 +213,13 @@ export class AiController {
         pollenLevel: result.data?.pollenData?.currentLevel,
         pollenTypes: result.data?.pollenData?.mainTypes,
       });
-      
+
       return result;
     } catch (error) {
-      this.logger.error('❌ [AI Controller] Weather/Pollen analysis failed:', error);
+      this.logger.error(
+        '❌ [AI Controller] Weather/Pollen analysis failed:',
+        error,
+      );
       throw error;
     }
   }
