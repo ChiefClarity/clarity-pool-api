@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { OnboardingService } from './onboarding.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiService } from '../ai/ai.service';
+import { SessionCompletionDto } from './dto/session-completion.dto';
 
 @Controller('api/onboarding')
 @UseGuards(JwtAuthGuard)
@@ -115,13 +116,13 @@ export class OnboardingController {
     @Param('sessionId') sessionId: string,
     @Body() body: { completedAt: string },
     @Req() req: any,
-  ) {
+  ): Promise<SessionCompletionDto> {
     this.logger.log(`Completing onboarding session: ${sessionId}`);
     
     try {
       const result = await this.onboardingService.completeSession(sessionId);
       
-      // Trigger AI processing if voice note exists
+      // Now TypeScript knows the shape, no property checking needed
       if (result.voiceNoteUrl) {
         this.logger.log(`Triggering AI analysis for session ${sessionId}`);
         // AI processing happens asynchronously

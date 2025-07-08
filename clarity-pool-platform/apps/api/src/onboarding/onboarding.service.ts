@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MockDataService } from '../common/mock-data.service';
+import { SessionCompletionDto } from './dto/session-completion.dto';
 
 @Injectable()
 export class OnboardingService {
@@ -186,24 +187,43 @@ export class OnboardingService {
     }
   }
 
-  async completeSession(sessionId: string) {
+  async completeSession(sessionId: string): Promise<SessionCompletionDto> {
     try {
       if (!this.prisma.isDatabaseAvailable()) {
         throw new Error('Database not available');
       }
-      return await this.prisma.onboardingSession.update({
+      
+      const result = await this.prisma.onboardingSession.update({
         where: { id: sessionId },
         data: {
           status: 'COMPLETED',
           completedAt: new Date(),
         },
+        include: {
+          customer: true,
+        }
       });
+      
+      // Map to consistent DTO
+      return {
+        id: result.id,
+        status: result.status,
+        completedAt: result.completedAt || new Date(),
+        customerId: result.customerId,
+        technicianId: result.technicianId,
+        voiceNoteUrl: result.voiceNoteUrl || undefined,
+        message: 'Session completed successfully',
+      };
+      
     } catch (error) {
       console.log('Database not available, returning mock response');
+      
+      // Mock response with same structure
       return {
         id: sessionId,
         status: 'COMPLETED',
         completedAt: new Date(),
+        voiceNoteUrl: undefined, // Consistent property, even if undefined
         message: 'Session completed successfully (mock)',
       };
     }
