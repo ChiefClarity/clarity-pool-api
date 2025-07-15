@@ -25,7 +25,7 @@ interface BookingData {
     address: string;
     city: string;
     state: string;
-    zipCode: string;
+    zipcode: string;  // Widget sends lowercase
     gateCode?: string;
     accessNotes?: string;
     hasDogs?: string;
@@ -189,7 +189,7 @@ export class EmailService {
     if (!data.address?.address) errors.push('Address is required');
     if (!data.address?.city) errors.push('City is required');
     if (!data.address?.state) errors.push('State is required');
-    if (!data.address?.zipCode) errors.push('Zip code is required');
+    if (!data.address?.zipcode) errors.push('Zip code is required');
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

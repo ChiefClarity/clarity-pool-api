@@ -25,7 +25,7 @@ export class BookingService {
       address: string;
       city: string;
       state: string;
-      zipCode: string;
+      zipcode: string;  // Widget sends lowercase
       gateCode?: string;
       accessNotes?: string;
       hasDogs?: string;
@@ -46,6 +46,9 @@ export class BookingService {
     };
   }) {
     try {
+      // Debug log to see exact widget data structure
+      console.log('Widget address data:', widgetData.address);
+
       // Transform widget data to match our API format
       const bookingData = {
         firstName: widgetData.customer.firstName,
@@ -55,7 +58,7 @@ export class BookingService {
         address: widgetData.address.address,
         city: widgetData.address.city,
         state: widgetData.address.state,
-        zipCode: widgetData.address.zipCode,
+        zipCode: widgetData.address.zipcode,  // Map lowercase from widget to capital C for database
       };
 
       // Create customer in Poolbrain

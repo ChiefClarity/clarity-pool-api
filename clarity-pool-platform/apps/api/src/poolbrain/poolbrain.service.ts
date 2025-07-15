@@ -25,7 +25,7 @@ interface WidgetData {
     address: string;
     city: string;
     state: string;
-    zipCode: string;  // Our format
+    zipcode: string;  // Widget sends lowercase
     gateCode?: string;
     accessNotes?: string;
     hasDogs?: string;
@@ -50,7 +50,12 @@ export class PoolbrainService {
   }
 
   private transformToPoolbrainFormat(widgetData: WidgetData): PoolbrainCustomerDto {
-    return {
+    this.logger.log('Transforming widget data to Poolbrain format:', {
+      widgetZipcode: widgetData.address.zipcode,
+      widgetAddress: widgetData.address,
+    });
+
+    const poolbrainData = {
       firstName: widgetData.customer.firstName,
       lastName: widgetData.customer.lastName,
       email: widgetData.customer.email,
@@ -58,11 +63,14 @@ export class PoolbrainService {
       address: widgetData.address.address,
       city: widgetData.address.city,
       state: widgetData.address.state,
-      zipcode: widgetData.address.zipCode,  // Transform field name
+      zipcode: widgetData.address.zipcode,  // Both widget and Poolbrain use lowercase
       GateCode: widgetData.address.gateCode,
       accessNotes: widgetData.address.accessNotes,
       hasDogs: widgetData.address.hasDogs || 'no',
     };
+
+    this.logger.log('Transformed Poolbrain data:', poolbrainData);
+    return poolbrainData;
   }
 
   async createCustomer(widgetData: WidgetData) {

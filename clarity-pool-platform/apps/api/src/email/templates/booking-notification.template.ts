@@ -279,7 +279,7 @@ export class BookingEmailTemplate {
                 </div>
                 <div class="info-row">
                     <div class="info-label">Zip Code:</div>
-                    <div class="info-value">${data.address.zipCode}</div>
+                    <div class="info-value">${data.address.zipcode}</div>
                 </div>
                 ${data.address.gateCode ? `
                 <div class="info-row">
@@ -398,7 +398,7 @@ PROPERTY INFORMATION
 Address: ${data.address.address}
 City: ${data.address.city}
 State: ${data.address.state}
-Zip Code: ${data.address.zipCode}
+Zip Code: ${data.address.zipcode}
 ${data.address.gateCode ? `Gate Code: ${data.address.gateCode}` : ''}
 ${data.address.accessNotes ? `Access Notes: ${data.address.accessNotes}` : ''}
 
