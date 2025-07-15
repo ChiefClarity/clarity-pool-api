@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PoolbrainService } from '../poolbrain/poolbrain.service';
 import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class BookingService {
+  private readonly logger = new Logger(BookingService.name);
+
   constructor(
     private prisma: PrismaService,
     private poolbrain: PoolbrainService,
@@ -27,6 +29,7 @@ export class BookingService {
       gateCode?: string;
       accessNotes?: string;
       hasDogs?: string;
+      dogDetails?: string;
     };
     waterBodies: Array<{
       waterBodyName: string;
@@ -38,6 +41,8 @@ export class BookingService {
       source: string;
       timestamp: string;
       hasMultipleBodies: boolean;
+      currentServiceDay?: string;
+      additionalComments?: string;
     };
   }) {
     try {
@@ -67,6 +72,16 @@ export class BookingService {
         accessNotes: widgetData.address.accessNotes,
         hasDogs: widgetData.address.hasDogs || 'no',
       });
+
+      // Send comprehensive email notification
+      try {
+        await this.email.sendBookingNotification(widgetData, poolbrainResponse.data.newCustomerAddrId);
+        this.logger.log('Booking notification email sent successfully');
+      } catch (emailError) {
+        // Log error but don't fail the booking
+        this.logger.error('Failed to send booking notification email:', emailError);
+        // The email service already handles retries and queuing
+      }
 
       // Create customer in our database
       const customer = await this.prisma.customer.create({
