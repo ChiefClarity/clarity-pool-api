@@ -1,5 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+interface PoolbrainCustomerDto {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  address: string;
+  city: string;
+  state: string;
+  zipcode: string;  // Their format
+  GateCode?: string;
+  accessNotes?: string;
+  hasDogs: string;
+}
+
+interface WidgetData {
+  customer: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    contactNumber: string;
+  };
+  address: {
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;  // Our format
+    gateCode?: string;
+    accessNotes?: string;
+    hasDogs?: string;
+  };
+}
+
 @Injectable()
 export class PoolbrainService {
   private readonly logger = new Logger(PoolbrainService.name);
@@ -17,7 +49,23 @@ export class PoolbrainService {
     }
   }
 
-  async createCustomer(data: any) {
+  private transformToPoolbrainFormat(widgetData: WidgetData): PoolbrainCustomerDto {
+    return {
+      firstName: widgetData.customer.firstName,
+      lastName: widgetData.customer.lastName,
+      email: widgetData.customer.email,
+      phone: widgetData.customer.contactNumber,
+      address: widgetData.address.address,
+      city: widgetData.address.city,
+      state: widgetData.address.state,
+      zipcode: widgetData.address.zipCode,  // Transform field name
+      GateCode: widgetData.address.gateCode,
+      accessNotes: widgetData.address.accessNotes,
+      hasDogs: widgetData.address.hasDogs || 'no',
+    };
+  }
+
+  async createCustomer(widgetData: WidgetData) {
     if (!this.apiKey) {
       this.logger.log('Using mock Poolbrain response (no API key)');
       return {
@@ -28,10 +76,12 @@ export class PoolbrainService {
       };
     }
 
+    const poolbrainPayload = this.transformToPoolbrainFormat(widgetData);
+
     try {
       this.logger.log('Creating customer in Poolbrain:', {
         url: `${this.apiUrl}/create_customer`,
-        data: data,
+        data: poolbrainPayload,
       });
 
       // Use native fetch instead of HttpService
@@ -41,7 +91,7 @@ export class PoolbrainService {
           'ACCESS-KEY': this.apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(poolbrainPayload),
       });
 
       const result = await response.json();

@@ -59,19 +59,7 @@ export class BookingService {
       };
 
       // Create customer in Poolbrain
-      const poolbrainResponse = await this.poolbrain.createCustomer({
-        firstName: widgetData.customer.firstName,
-        lastName: widgetData.customer.lastName,
-        email: widgetData.customer.email,
-        phone: widgetData.customer.contactNumber,
-        address: widgetData.address.address,
-        city: widgetData.address.city,
-        state: widgetData.address.state,
-        zipcode: widgetData.address.zipCode, // Map capital C to lowercase for Poolbrain
-        GateCode: widgetData.address.gateCode,
-        accessNotes: widgetData.address.accessNotes,
-        hasDogs: widgetData.address.hasDogs || 'no',
-      });
+      const poolbrainResponse = await this.poolbrain.createCustomer(widgetData);
 
       // Send comprehensive email notification
       try {
