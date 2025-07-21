@@ -1,19 +1,21 @@
-import { Module, CacheModule } from '@nestjs/common';
-import { RoutesController } from './routes.controller';
+import { Module } from '@nestjs/common';
 import { RouteIntelligenceService } from './route-intelligence.service';
+import { RoutesController } from './routes.controller';
 import { BookingModule } from '../booking/booking.module';
 import { PoolbrainModule } from '../poolbrain/poolbrain.module';
 
 @Module({
-  imports: [
-    BookingModule,
-    PoolbrainModule,
-    CacheModule.register({
-      ttl: 3600, // 1 hour default TTL
-    }),
-  ],
+  imports: [BookingModule, PoolbrainModule],
   controllers: [RoutesController],
-  providers: [RouteIntelligenceService],
-  exports: [RouteIntelligenceService],
+  providers: [
+    RouteIntelligenceService,
+    {
+      provide: 'CACHE_MANAGER',
+      useValue: {
+        get: async (key: string) => null,
+        set: async (key: string, value: any, ttl?: number) => {},
+      },
+    },
+  ],
 })
 export class RoutesModule {}

@@ -1,19 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { PoolbrainService } from '../poolbrain/poolbrain.service';
-import { CacheService } from '../cache/cache.service';
 import * as Sentry from '@sentry/node';
-
-interface TechnicianScore {
-  total: number;
-  factors: {
-    proximity: number;
-    capacity: number;
-    preferredDay: number;
-    experience: number;
-    specialRequirements: number;
-  };
-  distance: number;
-}
+import { TechnicianScore, TechnicianData } from './interfaces/route.interfaces';
 
 export interface RouteRecommendation {
   technicianId: string;
@@ -32,127 +20,119 @@ export class RouteIntelligenceService {
 
   constructor(
     private poolbrain: PoolbrainService,
-    private cache: CacheService,
+    @Inject('CACHE_MANAGER') private cache: any,
   ) {}
 
   async getRecommendations(bookingId: string, booking: any): Promise<RouteRecommendation[]> {
-    return await Sentry.startSpan(
+    return Sentry.startSpan(
       { name: 'RouteIntelligence.getRecommendations' },
       async () => {
-      // Check cache first
-      const cacheKey = `route-recommendations:${booking.address}:${booking.zipCode}`;
-      const cached = await this.cache.get(cacheKey) as RouteRecommendation[] | undefined;
-      if (cached) {
-        this.logger.log(`Cache hit for route recommendations: ${cacheKey}`);
-        return cached;
-      }
+        try {
+          const cacheKey = `recommendations:${bookingId}`;
+          const cached = await this.cache.get(cacheKey) as RouteRecommendation[] | undefined;
+          
+          if (cached) {
+            return cached;
+          }
 
-      // Get all technicians with routes
-      const technicians = await this.poolbrain.getTechniciansWithRoutes();
-      
-      // Calculate recommendations
-      const recommendations = await Promise.all(
-        technicians.map(async (tech) => {
-          const score = await this.calculateTechnicianScore(tech, booking);
-          return {
-            technicianId: tech.id,
-            technicianName: `${tech.firstName} ${tech.lastName}`,
-            routeDay: tech.primaryRoute?.dayOfWeek,
-            distanceToRoute: score.distance,
-            routeStopCount: tech.primaryRoute?.stops?.length || 0,
-            capacityAvailable: tech.maxCapacity - tech.currentCapacity,
-            score: score.total,
-            factors: score.factors,
-          };
-        }),
-      );
+          const technicians = await this.poolbrain.getTechniciansWithRoutes() || [];
+          
+          const recommendations = await Promise.all(
+            technicians.map(async (tech: any) => {
+              const score = await this.calculateTechnicianScore(tech, booking);
+              return {
+                technicianId: tech.id,
+                technicianName: tech.name,
+                score: score.total,
+                factors: score.factors,
+                routeDay: tech.primaryRoute?.dayOfWeek,
+                distanceToRoute: score.factors.proximity,
+                routeStopCount: tech.primaryRoute?.stops?.length || 0,
+                capacityAvailable: tech.maxCapacity - tech.currentCapacity,
+              };
+            })
+          );
 
-      // Sort by score (highest first)
-      const sorted = recommendations.sort((a, b) => b.score - a.score);
-      
-      // Cache for 1 hour
-      await this.cache.set(cacheKey, sorted, 3600);
-      
-      // Log top recommendations
-      this.logger.log(`Top recommendations for booking ${bookingId}:`, 
-        sorted.slice(0, 3).map(r => ({
-          tech: r.technicianName,
-          score: r.score,
-          distance: r.distanceToRoute,
-        }))
-      );
-      
-      return sorted;
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+          const sorted = recommendations.sort((a, b) => b.score - a.score);
+          
+          await this.cache.set(cacheKey, sorted, 300);
+          
+          return sorted;
+        } catch (error) {
+          this.logger.error('Failed to get recommendations', error);
+          return [];
+        }
       }
     );
   }
 
   async analyzeRouteOptions(data: { address: string; preferredDays: string[] }) {
-    return await Sentry.startSpan(
+    return Sentry.startSpan(
       { name: 'RouteIntelligence.analyzeRouteOptions' },
       async () => {
-      // Get all technicians
-      const technicians = await this.poolbrain.getTechniciansWithRoutes();
-      
-      // Analyze each day
-      const analysis = await Promise.all(
-        data.preferredDays.map(async (day) => {
-          // Find technicians working on this day
-          const dayTechs = technicians.filter(
-            (tech: any) => tech.primaryRoute?.dayOfWeek?.toLowerCase() === day.toLowerCase()
+        try {
+          // Get all technicians
+          const technicians = await this.poolbrain.getTechniciansWithRoutes();
+          
+          // Analyze each day
+          const analysis = await Promise.all(
+            data.preferredDays.map(async (day) => {
+              // Find technicians working on this day
+              const dayTechs = technicians.filter(
+                (tech: any) => tech.primaryRoute?.dayOfWeek?.toLowerCase() === day.toLowerCase()
+              );
+              
+              // Calculate average metrics for the day
+              const distances = await Promise.all(
+                dayTechs.map((tech: any) => 
+                  this.calculateDistance(data.address, tech.primaryRoute?.stops || [])
+                )
+              );
+              
+              const avgDistance = distances.length > 0
+                ? distances.reduce((sum, d) => sum + d, 0) / distances.length
+                : 0;
+              
+              const totalCapacity = dayTechs.reduce(
+                (sum: number, tech: any) => sum + (tech.maxCapacity - tech.currentCapacity), 
+                0
+              );
+              
+              return {
+                day,
+                technicianCount: dayTechs.length,
+                averageDistance: avgDistance,
+                totalAvailableCapacity: totalCapacity,
+                recommendation: this.getDayRecommendation(avgDistance, totalCapacity, dayTechs.length),
+              };
+            })
           );
           
-          // Calculate average metrics for the day
-          const distances = await Promise.all(
-            dayTechs.map((tech: any) => 
-              this.calculateDistance(data.address, tech.primaryRoute?.stops || [])
-            )
-          );
-          
-          const avgDistance = distances.length > 0
-            ? distances.reduce((sum, d) => sum + d, 0) / distances.length
-            : 0;
-          
-          const totalCapacity = dayTechs.reduce(
-            (sum: number, tech: any) => sum + (tech.maxCapacity - tech.currentCapacity), 
-            0
-          );
+          // Sort by recommendation score
+          const sorted = analysis.sort((a, b) => {
+            const scoreA = this.calculateDayScore(a);
+            const scoreB = this.calculateDayScore(b);
+            return scoreB - scoreA;
+          });
           
           return {
-            day,
-            technicianCount: dayTechs.length,
-            averageDistance: avgDistance,
-            totalAvailableCapacity: totalCapacity,
-            recommendation: this.getDayRecommendation(avgDistance, totalCapacity, dayTechs.length),
+            recommendedDay: sorted[0]?.day || null,
+            analysis: sorted,
+            metadata: {
+              addressAnalyzed: data.address,
+              technicianCount: technicians.length,
+              timestamp: new Date().toISOString(),
+            },
           };
-        })
-      );
-      
-      // Sort by recommendation score
-      const sorted = analysis.sort((a, b) => {
-        const scoreA = this.calculateDayScore(a);
-        const scoreB = this.calculateDayScore(b);
-        return scoreB - scoreA;
-      });
-      
-      return {
-        recommendedDay: sorted[0]?.day || null,
-        analysis: sorted,
-        metadata: {
-          addressAnalyzed: data.address,
-          technicianCount: technicians.length,
-          timestamp: new Date().toISOString(),
-        },
-      };
+        } catch (error) {
+          this.logger.error('Failed to analyze route options', error);
+          throw error;
+        }
       }
     );
   }
 
-  private async calculateTechnicianScore(technician: any, booking: any): Promise<TechnicianScore> {
+  private async calculateTechnicianScore(technician: TechnicianData, booking: any): Promise<TechnicianScore> {
     // Complex scoring algorithm
     const factors = {
       proximity: 0,

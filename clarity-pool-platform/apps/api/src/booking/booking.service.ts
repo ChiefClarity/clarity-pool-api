@@ -213,6 +213,17 @@ export class BookingService {
     data: { technicianId: string; scheduledDate?: Date; notes?: string }
   ) {
     try {
+      // First get the existing session
+      const existingSession = await this.prisma.onboardingSession.findUnique({
+        where: { id },
+        select: { stepsCompleted: true },
+      });
+
+      if (!existingSession) {
+        throw new Error('Session not found');
+      }
+
+      // Then update it
       const session = await this.prisma.onboardingSession.update({
         where: { id },
         data: {
@@ -220,10 +231,7 @@ export class BookingService {
           ...(data.scheduledDate && { scheduledFor: data.scheduledDate }),
           ...(data.notes && {
             stepsCompleted: {
-              ...(await this.prisma.onboardingSession.findUnique({
-                where: { id },
-                select: { stepsCompleted: true },
-              })).stepsCompleted as any,
+              ...(existingSession.stepsCompleted as object || {}),
               assignmentNotes: data.notes,
             },
           }),
@@ -233,8 +241,10 @@ export class BookingService {
           technician: true,
         },
       });
+      
       return session;
     } catch (error) {
+      this.logger.error('Failed to assign technician', error);
       throw new Error('Failed to assign technician');
     }
   }
