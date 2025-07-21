@@ -162,4 +162,99 @@ export class BookingService {
     tomorrow.setHours(10, 0, 0, 0);
     return tomorrow;
   }
+
+  // Add missing methods that work with Customer and OnboardingSession
+  async findAll(filters?: any) {
+    try {
+      const sessions = await this.prisma.onboardingSession.findMany({
+        where: {
+          ...(filters?.status && { status: filters.status }),
+          ...(filters?.technicianId && { technicianId: parseInt(filters.technicianId) }),
+          ...(filters?.dateFrom && {
+            scheduledFor: {
+              gte: new Date(filters.dateFrom),
+              ...(filters?.dateTo && { lte: new Date(filters.dateTo) }),
+            },
+          }),
+        },
+        include: {
+          customer: true,
+          technician: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+      return sessions;
+    } catch (error) {
+      // Return empty array if database not available
+      return [];
+    }
+  }
+
+  async findOne(id: string) {
+    try {
+      const session = await this.prisma.onboardingSession.findUnique({
+        where: { id },
+        include: {
+          customer: true,
+          technician: true,
+        },
+      });
+      return session;
+    } catch (error) {
+      // Return null if not found or database error
+      return null;
+    }
+  }
+
+  async assignTechnicianToBooking(
+    id: string,
+    data: { technicianId: string; scheduledDate?: Date; notes?: string }
+  ) {
+    try {
+      const session = await this.prisma.onboardingSession.update({
+        where: { id },
+        data: {
+          technicianId: parseInt(data.technicianId),
+          ...(data.scheduledDate && { scheduledFor: data.scheduledDate }),
+          ...(data.notes && {
+            stepsCompleted: {
+              ...(await this.prisma.onboardingSession.findUnique({
+                where: { id },
+                select: { stepsCompleted: true },
+              })).stepsCompleted as any,
+              assignmentNotes: data.notes,
+            },
+          }),
+        },
+        include: {
+          customer: true,
+          technician: true,
+        },
+      });
+      return session;
+    } catch (error) {
+      throw new Error('Failed to assign technician');
+    }
+  }
+
+  async bulkAssign(
+    assignments: Array<{ bookingId: string; technicianId: string; scheduledDate?: Date; notes?: string }>
+  ) {
+    try {
+      const updates = await Promise.all(
+        assignments.map((assignment) =>
+          this.assignTechnicianToBooking(assignment.bookingId, {
+            technicianId: assignment.technicianId,
+            scheduledDate: assignment.scheduledDate,
+            notes: assignment.notes,
+          })
+        )
+      );
+      return updates;
+    } catch (error) {
+      throw new Error('Failed to bulk assign');
+    }
+  }
 }

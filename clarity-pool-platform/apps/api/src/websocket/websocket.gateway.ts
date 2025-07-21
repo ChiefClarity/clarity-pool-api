@@ -91,9 +91,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       });
 
       // Track connection metrics
-      Sentry.metrics.increment('websocket.connections', 1, {
-        tags: { role: user.role },
-      });
+      // Sentry.metrics.increment('websocket.connections', 1, {
+      //   tags: { role: user.role },
+      // });
     } catch (error) {
       this.logger.error('Connection error:', error);
       Sentry.captureException(error);
@@ -108,9 +108,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       this.logger.log(`Client disconnected: ${client.id} (${authenticatedClient.data.user.email})`);
       
       // Track disconnection metrics
-      Sentry.metrics.increment('websocket.disconnections', 1, {
-        tags: { role: authenticatedClient.data.user.role },
-      });
+      // Sentry.metrics.increment('websocket.disconnections', 1, {
+      //   tags: { role: authenticatedClient.data.user.role },
+      // });
     }
     
     this.connections.delete(client.id);
@@ -159,7 +159,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.server.to('role:ADMIN').emit('booking:new', notification);
 
     // Log metric
-    Sentry.metrics.increment('bookings.new');
+    // Sentry.metrics.increment('bookings.new');
     
     this.logger.log(`New booking notification sent: ${booking.id}`);
   }
@@ -190,7 +190,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.server.to(`user:${assignment.technicianId}`).emit('assignment:new', techNotification);
 
     // Log metrics
-    Sentry.metrics.increment('bookings.assigned');
+    // Sentry.metrics.increment('bookings.assigned');
     
     this.logger.log(`Booking ${bookingId} assigned to technician ${assignment.technicianId}`);
   }
@@ -206,7 +206,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.server.to('booking-updates').emit('booking:completed', notification);
     
     // Log metric
-    Sentry.metrics.increment('bookings.completed');
+    // Sentry.metrics.increment('bookings.completed');
   }
 
   notifyRouteUpdate(technicianId: string, routeData: any) {

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
+import { User } from '../interfaces/user.interface';
 
 @Catch()
 export class BookingExceptionFilter implements ExceptionFilter {
@@ -30,10 +31,7 @@ export class BookingExceptionFilter implements ExceptionFilter {
           endpoint: request.url,
           method: request.method,
         },
-        user: request['user'] ? {
-          id: request['user'].id,
-          email: request['user'].email,
-        } : undefined,
+        user: request['user'] as User | undefined,
       });
     }
 
@@ -42,10 +40,14 @@ export class BookingExceptionFilter implements ExceptionFilter {
       : { message: 'Internal server error' };
 
     // Log error details
-    this.logger.error(
-      `${request.method} ${request.url} - ${status} - ${JSON.stringify(message)}`,
-      exception instanceof Error ? exception.stack : undefined
-    );
+    const user = request['user'] as User | undefined;
+    this.logger.error('Booking error occurred', {
+      error: exception instanceof Error ? exception.message : 'Unknown error',
+      stack: exception instanceof Error ? exception.stack : undefined,
+      user: user ? { id: user.id, email: user.email } : 'anonymous',
+      path: request.url,
+      method: request.method,
+    });
 
     response.status(status).json({
       statusCode: status,

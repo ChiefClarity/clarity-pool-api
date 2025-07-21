@@ -15,7 +15,7 @@ interface TechnicianScore {
   distance: number;
 }
 
-interface RouteRecommendation {
+export interface RouteRecommendation {
   technicianId: string;
   technicianName: string;
   routeDay?: string;
@@ -36,12 +36,12 @@ export class RouteIntelligenceService {
   ) {}
 
   async getRecommendations(bookingId: string, booking: any): Promise<RouteRecommendation[]> {
-    const span = Sentry.startSpan({ name: 'RouteIntelligence.getRecommendations' });
-    
-    try {
+    return await Sentry.startSpan(
+      { name: 'RouteIntelligence.getRecommendations' },
+      async () => {
       // Check cache first
       const cacheKey = `route-recommendations:${booking.address}:${booking.zipCode}`;
-      const cached = await this.cache.get<RouteRecommendation[]>(cacheKey);
+      const cached = await this.cache.get(cacheKey) as RouteRecommendation[] | undefined;
       if (cached) {
         this.logger.log(`Cache hit for route recommendations: ${cacheKey}`);
         return cached;
@@ -86,15 +86,15 @@ export class RouteIntelligenceService {
     } catch (error) {
       Sentry.captureException(error);
       throw error;
-    } finally {
-      span.end();
     }
+      }
+    );
   }
 
   async analyzeRouteOptions(data: { address: string; preferredDays: string[] }) {
-    const span = Sentry.startSpan({ name: 'RouteIntelligence.analyzeRouteOptions' });
-    
-    try {
+    return await Sentry.startSpan(
+      { name: 'RouteIntelligence.analyzeRouteOptions' },
+      async () => {
       // Get all technicians
       const technicians = await this.poolbrain.getTechniciansWithRoutes();
       
@@ -103,12 +103,12 @@ export class RouteIntelligenceService {
         data.preferredDays.map(async (day) => {
           // Find technicians working on this day
           const dayTechs = technicians.filter(
-            tech => tech.primaryRoute?.dayOfWeek?.toLowerCase() === day.toLowerCase()
+            (tech: any) => tech.primaryRoute?.dayOfWeek?.toLowerCase() === day.toLowerCase()
           );
           
           // Calculate average metrics for the day
           const distances = await Promise.all(
-            dayTechs.map(tech => 
+            dayTechs.map((tech: any) => 
               this.calculateDistance(data.address, tech.primaryRoute?.stops || [])
             )
           );
@@ -118,7 +118,7 @@ export class RouteIntelligenceService {
             : 0;
           
           const totalCapacity = dayTechs.reduce(
-            (sum, tech) => sum + (tech.maxCapacity - tech.currentCapacity), 
+            (sum: number, tech: any) => sum + (tech.maxCapacity - tech.currentCapacity), 
             0
           );
           
@@ -148,9 +148,8 @@ export class RouteIntelligenceService {
           timestamp: new Date().toISOString(),
         },
       };
-    } finally {
-      span.end();
-    }
+      }
+    );
   }
 
   private async calculateTechnicianScore(technician: any, booking: any): Promise<TechnicianScore> {
