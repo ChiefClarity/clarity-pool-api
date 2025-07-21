@@ -20,6 +20,7 @@ import { HealthModule } from './health/health.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { AIModule } from './ai/ai.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { RoutesModule } from './routes/routes.module';
 import { SentryConfig } from './config/sentry.config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { SecurityMiddleware } from './common/middleware/security.middleware';
@@ -53,6 +54,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     MonitoringModule,
     AIModule,
     UploadsModule,
+    RoutesModule,
   ],
   controllers: [AppController],
   providers: [

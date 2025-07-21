@@ -1731,22 +1731,42 @@ Format your response as a JSON object with these sections:
   }
 
   async analyzePoolSurface(
-    imageBase64: string,
+    images: string | string[],
     sessionId: string,
   ): Promise<any> {
     try {
       this.logger.log(`Analyzing pool surface for session: ${sessionId}`);
+      
+      // Normalize to array
+      const imageArray = Array.isArray(images) ? images : [images];
+      this.logger.log(`Processing ${imageArray.length} surface images`);
 
-      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-      const imageBuffer = Buffer.from(base64Data, 'base64');
+      const uploadedImages = [];
+      
+      // Upload all images
+      for (let i = 0; i < imageArray.length; i++) {
+        const base64Data = imageArray[i].replace(/^data:image\/\w+;base64,/, '');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
 
-      // Upload to S3
-      const uploadResult = await this.uploadsService.uploadImage(
-        imageBuffer,
-        'image/jpeg',
-        'pool',
-        { sessionId, analysisType: 'pool-surface' },
-      );
+        const uploadResult = await this.uploadsService.uploadImage(
+          imageBuffer,
+          'image/jpeg',
+          'pool',
+          { 
+            sessionId, 
+            analysisType: 'pool-surface',
+            imageIndex: i.toString()
+          },
+        );
+        
+        uploadedImages.push(uploadResult.url);
+      }
+
+      // Analyze primary image with context of others
+      const primaryImage = uploadedImages[0];
+      const additionalContext = imageArray.length > 1 
+        ? `\n\nNote: ${imageArray.length} total images provided. Focus on the main surface issues visible across all images.`
+        : '';
 
       // Use provider fallback for analysis
       let lastError: Error | null = null;
@@ -1756,8 +1776,8 @@ Format your response as a JSON object with these sections:
 
         try {
           const result = await provider.analyze(
-            uploadResult.url,
-            this.getPoolSurfacePrompt(),
+            primaryImage,
+            this.getPoolSurfacePrompt() + additionalContext,
           );
 
           // Parse the AI response using the parser
@@ -1765,7 +1785,8 @@ Format your response as a JSON object with these sections:
 
           return {
             success: true,
-            imageUrl: uploadResult.url,
+            imageUrl: primaryImage, // Primary image for backward compatibility
+            imageUrls: uploadedImages, // All images
             analysis: parsedResult, // Now returns the properly parsed structure
           };
         } catch (error) {
