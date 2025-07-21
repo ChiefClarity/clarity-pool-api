@@ -21,6 +21,12 @@ interface WidgetData {
     accessNotes?: string;
     hasDogs?: string;
   };
+  waterBodies: Array<{
+    waterBodyName: string;
+    waterBodyType: number;
+    waterBodyGallons?: number | null;
+    concerns?: string;
+  }>;
 }
 
 @Injectable()
@@ -61,8 +67,11 @@ export class PoolbrainService {
       hasDogs: widgetData.address.hasDogs || 'no',
     };
 
+    // Get water body gallons from the first water body (if exists)
+    const waterBodyGallons = widgetData.waterBodies?.[0]?.waterBodyGallons || null;
+
     // Use the mapper function to transform to Poolbrain format
-    const poolbrainData = mapToPoolbrainCustomer(createCustomerDto);
+    const poolbrainData = mapToPoolbrainCustomer({ ...createCustomerDto, waterBodyGallons });
 
     this.logger.log('Transformed Poolbrain data:', poolbrainData);
     return poolbrainData;

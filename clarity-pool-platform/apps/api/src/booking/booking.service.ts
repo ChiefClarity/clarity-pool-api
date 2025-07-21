@@ -34,7 +34,7 @@ export class BookingService {
     waterBodies: Array<{
       waterBodyName: string;
       waterBodyType: number;
-      waterBodyGallons: number;
+      waterBodyGallons?: number | null;
       concerns?: string;
     }>;
     metadata: {

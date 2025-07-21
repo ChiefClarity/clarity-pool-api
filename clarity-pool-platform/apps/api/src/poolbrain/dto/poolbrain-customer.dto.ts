@@ -10,6 +10,7 @@ export interface CreateCustomerDto {
   gateCode?: string;
   accessNotes?: string;
   hasDogs?: string;
+  waterBodyGallons?: number | null;
 }
 
 export interface PoolbrainCustomerDto {
@@ -24,9 +25,10 @@ export interface PoolbrainCustomerDto {
   GateCode?: string;
   accessNotes?: string;
   hasDogs?: string;
+  waterBodyGallons: number;
 }
 
-export function mapToPoolbrainCustomer(customer: CreateCustomerDto): PoolbrainCustomerDto {
+export function mapToPoolbrainCustomer(customer: CreateCustomerDto & { waterBodyGallons?: number | null }): PoolbrainCustomerDto {
   return {
     firstName: customer.firstName,
     lastName: customer.lastName,
@@ -39,5 +41,6 @@ export function mapToPoolbrainCustomer(customer: CreateCustomerDto): PoolbrainCu
     GateCode: customer.gateCode,
     accessNotes: customer.accessNotes,
     hasDogs: customer.hasDogs,
+    waterBodyGallons: customer.waterBodyGallons || 0, // Default to 0 if null/undefined
   };
 }
