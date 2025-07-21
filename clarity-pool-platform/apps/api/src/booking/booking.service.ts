@@ -66,7 +66,16 @@ export class BookingService {
 
       // Send comprehensive email notification
       try {
-        await this.email.sendBookingNotification(widgetData, poolbrainResponse.data.newCustomerAddrId);
+        // Email service requires waterBodyGallons as number, transform null/undefined to 0
+        const emailData = {
+          ...widgetData,
+          waterBodies: widgetData.waterBodies.map(body => ({
+            ...body,
+            waterBodyGallons: body.waterBodyGallons || 0
+          }))
+        };
+        
+        await this.email.sendBookingNotification(emailData, poolbrainResponse.data.newCustomerAddrId);
         this.logger.log('Booking notification email sent successfully');
       } catch (emailError) {
         // Log error but don't fail the booking
