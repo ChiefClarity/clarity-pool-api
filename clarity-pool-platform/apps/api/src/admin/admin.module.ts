@@ -1,9 +1,10 @@
 // apps/api/src/admin/admin.module.ts
-// SIMPLIFIED VERSION - No WebSocket for initial deployment
+// ENTERPRISE GRADE - Properly configured module with all dependencies
 import { Module } from '@nestjs/common';
 import { AdminReportsController } from './admin-reports.controller';
 import { AdminReportsService } from './admin-reports.service';
 import { AdminGateway } from './admin.gateway';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { ReportsModule } from '../reports/reports.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
@@ -13,7 +14,11 @@ import { PrismaModule } from '../prisma/prisma.module';
     PrismaModule,
   ],
   controllers: [AdminReportsController],
-  providers: [AdminReportsService, AdminGateway],
-  exports: [AdminReportsService],
+  providers: [
+    AdminReportsService,
+    AdminGateway,
+    AdminGuard, // Provide AdminGuard in this module
+  ],
+  exports: [AdminReportsService, AdminGuard],
 })
 export class AdminModule {}

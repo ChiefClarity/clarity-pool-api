@@ -6,6 +6,7 @@ import { WeatherService } from '../weather/weather.service';
 import { ClaudeAnalysisService } from '../claude-analysis/claude-analysis.service';
 import { HealthScoreCalculator } from './health-score.calculator';
 import { ChemistryTrendAnalyzer } from './chemistry-trend.analyzer';
+import { WeeklyReportTemplate } from './templates/weekly-report.template';
 import {
   WeeklyReportData,
   ChemistryReadings,
@@ -25,6 +26,7 @@ export class WeeklyReportService {
     private claudeAnalysis: ClaudeAnalysisService,
     private healthScoreCalculator: HealthScoreCalculator,
     private chemistryTrendAnalyzer: ChemistryTrendAnalyzer,
+    private weeklyReportTemplate: WeeklyReportTemplate,
   ) {}
 
   async generateReportForJob(jobId: number): Promise<boolean> {
@@ -341,5 +343,9 @@ export class WeeklyReportService {
       notes: 'Pool in good condition',
       serviceFrequency: 'weekly',
     };
+  }
+
+  getReportTemplate() {
+    return this.weeklyReportTemplate;
   }
 }
