@@ -1,440 +1,135 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Post,
-  Body,
-  Param,
+// apps/api/src/admin/admin-reports.controller.ts
+// ENTERPRISE GRADE FIX - Matches DTOs exactly
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Put, 
+  Body, 
+  Param, 
   Query,
   UseGuards,
-  UseFilters,
-  HttpException,
+  Logger,
+  HttpCode,
   HttpStatus,
-  ValidationPipe,
+  ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/guards/admin.guard';
-import { BookingExceptionFilter } from '../common/filters/booking-exception.filter';
-import { WeeklyReportService } from '../reports/weekly-report.service';
-import { ReportScheduler } from '../reports/report.scheduler';
-import { PrismaService } from '../prisma/prisma.service';
-import {
-  ReportConfigDto,
-  CustomerPreferencesDto,
-  BulkSendDto,
+import { AdminReportsService } from './admin-reports.service';
+import { 
+  UpdateReportConfigDto,
+  ReportHistoryFiltersDto,
   TestReportDto,
   PreviewReportDto,
-  GetReportHistoryDto,
-  GetReportAnalyticsDto,
+  CustomerPreferencesDto,
+  BulkSendDto,
 } from './dto/admin-reports.dto';
-
-@Controller('admin/reports')
+@Controller('api/admin/reports')
 @UseGuards(AdminGuard)
-@UseFilters(BookingExceptionFilter)
 export class AdminReportsController {
+  private readonly logger = new Logger(AdminReportsController.name);
+
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly adminReportsService: AdminReportsService,
   ) {}
 
-  @Get('config')
-  async getReportConfiguration() {
+  @Get('weekly/config')
+  async getWeeklyReportConfig() {
     try {
-      // Get current system configuration for reports
-      const config = await this.prisma.systemConfig.findMany({
-        where: {
-          key: {
-            in: ['report_enabled_days', 'report_default_time', 'report_features', 'report_retry_config']
-          }
-        }
-      });
-      
-      // Parse config values with defaults
-      const configData = {
-        enabledDays: config.find(c => c.key === 'report_enabled_days')?.value || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-        defaultTime: config.find(c => c.key === 'report_default_time')?.value || '09:00',
-        enabledFeatures: config.find(c => c.key === 'report_features')?.value || {
-          chemistryAnalysis: true,
-          weatherIntegration: true,
-          aiInsights: true,
-          equipmentStatus: true,
-          maintenanceReminders: true
-        },
-        retryAttempts: (config.find(c => c.key === 'report_retry_config')?.value as any)?.retryAttempts || 3,
-        retryDelayMinutes: (config.find(c => c.key === 'report_retry_config')?.value as any)?.retryDelayMinutes || 5
-      };
-      
-      return {
-        success: true,
-        config: configData,
-      };
+      return await this.adminReportsService.getWeeklyReportConfig();
     } catch (error) {
-      throw new HttpException(
-        'Failed to retrieve report configuration',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error('Failed to fetch report configuration', error);
+      throw error;
     }
   }
 
-  @Put('config')
-  async updateReportConfiguration(
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) data: ReportConfigDto,
-  ) {
+  @Put('weekly/config')
+  async updateWeeklyReportConfig(@Body() config: UpdateReportConfigDto) {
     try {
-      // Update system configuration
-      await Promise.all([
-        this.prisma.systemConfig.upsert({
-          where: { key: 'report_enabled_days' },
-          create: { key: 'report_enabled_days', value: data.enabledDays },
-          update: { value: data.enabledDays }
-        }),
-        this.prisma.systemConfig.upsert({
-          where: { key: 'report_default_time' },
-          create: { key: 'report_default_time', value: data.defaultTime },
-          update: { value: data.defaultTime }
-        }),
-        this.prisma.systemConfig.upsert({
-          where: { key: 'report_features' },
-          create: { key: 'report_features', value: data.enabledFeatures as any },
-          update: { value: data.enabledFeatures as any }
-        }),
-        this.prisma.systemConfig.upsert({
-          where: { key: 'report_retry_config' },
-          create: { key: 'report_retry_config', value: { retryAttempts: data.retryAttempts, retryDelayMinutes: data.retryDelayMinutes } },
-          update: { value: { retryAttempts: data.retryAttempts, retryDelayMinutes: data.retryDelayMinutes } }
-        })
-      ]);
-      
-      return {
-        success: true,
-        message: 'Report configuration updated successfully',
-        config: data,
-      };
+      return await this.adminReportsService.updateWeeklyReportConfig(config);
     } catch (error) {
-      throw new HttpException(
-        error.message || 'Failed to update report configuration',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error('Failed to update report configuration', error);
+      throw error;
     }
   }
 
-  @Get('history')
-  async getReportHistory(
-    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: GetReportHistoryDto,
-  ) {
-    const { page = 1, limit = 20, status, startDate, endDate } = query;
-    const customerId = (query as any).customerId;
+  @Get('weekly/history')
+  async getReportHistory(@Query() filters: ReportHistoryFiltersDto) {
     try {
-      const pageNum = page;
-      const limitNum = limit;
-      
-      const where: any = {};
-      
-      if (customerId) {
-        where.customerId = customerId;
-      }
-      
-      if (status) {
-        where.deliveryStatus = status;
-      }
-      
-      if (startDate || endDate) {
-        where.sentAt = {};
-        if (startDate) {
-          where.sentAt.gte = new Date(startDate);
-        }
-        if (endDate) {
-          where.sentAt.lte = new Date(endDate);
-        }
-      }
-      
-      const [reports, total] = await Promise.all([
-        this.prisma.reportHistory.findMany({
-          where,
-          skip: (pageNum - 1) * limitNum,
-          take: limitNum,
-          orderBy: { sentAt: 'desc' },
-          include: {
-            customer: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-          },
-        }),
-        this.prisma.reportHistory.count({ where }),
-      ]);
-      
-      return {
-        success: true,
-        data: reports,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          totalPages: Math.ceil(total / limitNum),
-        },
-      };
+      return await this.adminReportsService.getReportHistory(filters);
     } catch (error) {
-      throw new HttpException(
-        'Failed to retrieve report history',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error('Failed to fetch report history', error);
+      throw error;
     }
   }
 
-  @Get('analytics')
+  @Post('weekly/test')
+  @HttpCode(HttpStatus.OK)
+  async sendTestReport(@Body() dto: TestReportDto) {
+    try {
+      return await this.adminReportsService.sendTestReport(dto);
+    } catch (error) {
+      this.logger.error('Failed to send test report', error);
+      throw error;
+    }
+  }
+
+  @Get('weekly/analytics')
   async getReportAnalytics(
-    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: GetReportAnalyticsDto,
+    @Query('days', ParseIntPipe) days: number = 30
   ) {
-    const { startDate, endDate } = query;
     try {
-      const dateFilter: any = {};
-      
-      if (startDate || endDate) {
-        dateFilter.sentAt = {};
-        if (startDate) {
-          dateFilter.sentAt.gte = new Date(startDate);
-        }
-        if (endDate) {
-          dateFilter.sentAt.lte = new Date(endDate);
-        }
-      }
-      
-      const [totalSent, totalFailed] = await Promise.all([
-        this.prisma.reportHistory.count({
-          where: { ...dateFilter, deliveryStatus: 'delivered' },
-        }),
-        this.prisma.reportHistory.count({
-          where: { ...dateFilter, deliveryStatus: 'failed' },
-        }),
-      ]);
-      
-      const successRate = totalSent + totalFailed > 0 
-        ? (totalSent / (totalSent + totalFailed)) * 100 
-        : 0;
-      
-      return {
-        success: true,
-        analytics: {
-          totalSent,
-          totalFailed,
-          successRate: Math.round(successRate * 100) / 100,
-          avgDeliveryTimeMs: 0, // Not available in current schema
-          topFailureReasons: [], // Not available in current schema
-          dateRange: {
-            start: startDate || 'all time',
-            end: endDate || 'current',
-          },
-        },
-      };
+      return await this.adminReportsService.getReportAnalytics(days);
     } catch (error) {
-      throw new HttpException(
-        'Failed to retrieve report analytics',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error('Failed to fetch report analytics', error);
+      throw error;
     }
   }
 
-  @Post('test')
-  async sendTestReport(
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) data: TestReportDto,
-  ) {
+  @Post('weekly/preview')
+  async previewReport(@Body() dto: PreviewReportDto) {
     try {
-      // For now, we'll simulate sending a test report
-      // In a real implementation, this would call the weekly report service
-      const result = {
-        reportId: `test_${Date.now()}`,
-        success: true
-      };
-      
-      return {
-        success: true,
-        message: 'Test report sent successfully',
-        reportId: result.reportId,
-        sentAt: new Date().toISOString(),
-      };
+      return await this.adminReportsService.generateReportPreview(dto);
     } catch (error) {
-      throw new HttpException(
-        error.message || 'Failed to send test report',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  @Post('preview')
-  async generateReportPreview(
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) data: PreviewReportDto,
-  ) {
-    try {
-      // For now, we'll return a simulated preview
-      // In a real implementation, this would generate an actual preview
-      const preview = {
-        html: '<h1>Sample Report Preview</h1><p>This is a preview of the weekly report.</p>',
-        text: 'Sample Report Preview\n\nThis is a preview of the weekly report.',
-        subject: `${data.reportType.charAt(0).toUpperCase() + data.reportType.slice(1)} Pool Report Preview`,
-        metadata: {
-          customerId: data.customerId,
-          reportType: data.reportType,
-          generatedAt: new Date().toISOString()
-        }
-      };
-      
-      return {
-        success: true,
-        preview: {
-          html: preview.html,
-          text: preview.text,
-          subject: preview.subject,
-          metadata: preview.metadata,
-        },
-      };
-    } catch (error) {
-      throw new HttpException(
-        error.message || 'Failed to generate report preview',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  @Get('preferences/:customerId')
-  async getCustomerPreferences(@Param('customerId') customerId: string) {
-    try {
-      const preferences = await this.prisma.reportPreferences.findUnique({
-        where: { customerId: parseInt(customerId) },
-      });
-      
-      if (!preferences) {
-        // Return default preferences if none exist
-        return {
-          success: true,
-          preferences: {
-            enabled: true,
-            reportDelay: 5,
-            includeCharts: true,
-            preferredFormat: 'html',
-          },
-        };
-      }
-      
-      return {
-        success: true,
-        preferences,
-      };
-    } catch (error) {
-      throw new HttpException(
-        'Failed to retrieve customer preferences',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error('Failed to generate preview', error);
+      throw error;
     }
   }
 
   @Put('preferences/:customerId')
   async updateCustomerPreferences(
-    @Param('customerId') customerId: string,
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) data: CustomerPreferencesDto,
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @Body() preferences: CustomerPreferencesDto
   ) {
     try {
-      const updatedPreferences = await this.prisma.reportPreferences.upsert({
-        where: { customerId: parseInt(customerId) },
-        create: {
-          customerId: parseInt(customerId),
-          enabled: data.receiveReports,
-          reportDelay: 5,
-          includeCharts: true,
-          preferredFormat: data.emailFormat,
-        },
-        update: {
-          enabled: data.receiveReports,
-          preferredFormat: data.emailFormat,
-        },
-      });
-      
-      return {
-        success: true,
-        message: 'Customer preferences updated successfully',
-        preferences: updatedPreferences,
-      };
+      return await this.adminReportsService.updateCustomerPreferences(customerId, preferences);
     } catch (error) {
-      throw new HttpException(
-        error.message || 'Failed to update customer preferences',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error(`Failed to update preferences for customer ${customerId}`, error);
+      throw error;
     }
   }
 
-  @Post('bulk-send')
-  async sendBulkReports(
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) data: BulkSendDto,
+  @Get('preferences/:customerId')
+  async getCustomerPreferences(
+    @Param('customerId', ParseIntPipe) customerId: number
   ) {
     try {
-      // Build customer filter
-      const where: any = {};
-      
-      if (data.customerIds && data.customerIds.length > 0) {
-        where.id = { in: data.customerIds };
-      }
-      
-      if (data.tags && data.tags.length > 0) {
-        where.tags = { hasSome: data.tags };
-      }
-      
-      // Get eligible customers
-      const customers = await this.prisma.customer.findMany({
-        where: {
-          ...where,
-          active: true,
-          reportPreferences: {
-            enabled: true,
-          },
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      });
-      
-      if (data.dryRun) {
-        return {
-          success: true,
-          dryRun: true,
-          message: `Would send ${data.reportType} reports to ${customers.length} customers`,
-          customers: customers.map(c => ({
-            id: c.id,
-            name: `${c.firstName} ${c.lastName}`,
-            email: c.email,
-          })),
-        };
-      }
-      
-      // Queue reports for sending
-      const results = await Promise.allSettled(
-        customers.map(customer =>
-          // Simulate queuing a report - in real implementation this would call the scheduler
-          Promise.resolve({ success: true, customerId: customer.id })
-        ),
-      );
-      
-      const successful = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
-      
-      return {
-        success: true,
-        message: `Bulk report send initiated`,
-        summary: {
-          total: customers.length,
-          queued: successful,
-          failed,
-        },
-      };
+      return await this.adminReportsService.getCustomerPreferences(customerId);
     } catch (error) {
-      throw new HttpException(
-        error.message || 'Failed to send bulk reports',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error(`Failed to fetch preferences for customer ${customerId}`, error);
+      throw error;
+    }
+  }
+
+  @Post('weekly/bulk-send')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async sendBulkReports(@Body() dto: BulkSendDto) {
+    try {
+      return await this.adminReportsService.sendBulkReports(dto);
+    } catch (error) {
+      this.logger.error('Failed to send bulk reports', error);
+      throw error;
     }
   }
 }

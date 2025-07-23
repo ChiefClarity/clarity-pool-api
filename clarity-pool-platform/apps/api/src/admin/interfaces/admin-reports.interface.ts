@@ -11,6 +11,7 @@ export interface AdminReportConfig {
   lastModifiedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  weatherEnabled?: boolean;
 }
 
 export interface AdminReportHistory {

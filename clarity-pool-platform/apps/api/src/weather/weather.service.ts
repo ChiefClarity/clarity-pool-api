@@ -15,9 +15,13 @@ export class WeatherService {
     private httpService: HttpService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
-    this.apiKey = process.env.OPENWEATHER_API_KEY || '';
+    this.apiKey = process.env.WEATHER_API_KEY || '';
+    const weatherEnabled = process.env.WEATHER_ENABLED !== 'false';
 
-    if (!this.apiKey) {
+    if (!weatherEnabled || this.apiKey === 'disabled') {
+      this.logger.warn('Weather service is disabled - using mock data');
+      this.apiKey = ''; // Clear API key to force mock data
+    } else if (!this.apiKey) {
       this.logger.warn('OpenWeather API key not configured - using mock data');
     }
   }
