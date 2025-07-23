@@ -1,6 +1,6 @@
-import { 
-  WebSocketGateway, 
-  WebSocketServer, 
+import {
+  WebSocketGateway,
+  WebSocketServer,
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -35,24 +35,28 @@ interface AuthenticatedSocket extends Socket {
   transports: ['websocket', 'polling'],
 })
 @Injectable()
-export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class WebsocketGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(WebsocketGateway.name);
   private readonly connections = new Map<string, AuthenticatedSocket>();
 
-  constructor(
-    private readonly jwtService: JwtService,
-  ) {}
+  constructor(private readonly jwtService: JwtService) {}
 
   async handleConnection(client: Socket) {
     try {
       // Verify JWT token
-      const token = client.handshake.auth.token || client.handshake.headers.authorization?.replace('Bearer ', '');
-      
+      const token =
+        client.handshake.auth.token ||
+        client.handshake.headers.authorization?.replace('Bearer ', '');
+
       if (!token) {
-        this.logger.warn(`Client ${client.id} attempted to connect without token`);
+        this.logger.warn(
+          `Client ${client.id} attempted to connect without token`,
+        );
         client.disconnect();
         return;
       }
@@ -80,7 +84,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
         client.join(`org:${user.organizationId}`);
       }
 
-      this.logger.log(`Client connected: ${client.id} (${user.email}) with role: ${user.role}`);
+      this.logger.log(
+        `Client connected: ${client.id} (${user.email}) with role: ${user.role}`,
+      );
 
       // Send connection acknowledgment
       client.emit('connected', {
@@ -103,16 +109,18 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   async handleDisconnect(client: Socket) {
     const authenticatedClient = this.connections.get(client.id);
-    
+
     if (authenticatedClient?.data?.user) {
-      this.logger.log(`Client disconnected: ${client.id} (${authenticatedClient.data.user.email})`);
-      
+      this.logger.log(
+        `Client disconnected: ${client.id} (${authenticatedClient.data.user.email})`,
+      );
+
       // Track disconnection metrics
       // Sentry.metrics.increment('websocket.disconnections', 1, {
       //   tags: { role: authenticatedClient.data.user.role },
       // });
     }
-    
+
     this.connections.delete(client.id);
   }
 
@@ -129,12 +137,16 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     client.join('booking-updates');
     client.emit('subscribed', { channel: 'booking-updates' });
-    
-    this.logger.log(`User ${client.data.user.email} subscribed to booking updates`);
+
+    this.logger.log(
+      `User ${client.data.user.email} subscribed to booking updates`,
+    );
   }
 
   @SubscribeMessage('subscribe-technician-updates')
-  handleSubscribeTechnicianUpdates(@ConnectedSocket() client: AuthenticatedSocket) {
+  handleSubscribeTechnicianUpdates(
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
     // Technicians can only subscribe to their own updates
     if (client.data.user.role === 'TECHNICIAN') {
       client.join(`technician:${client.data.user.id}`);
@@ -154,13 +166,13 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     // Notify all CSMs
     this.server.to('role:CSM').emit('booking:new', notification);
-    
+
     // Notify admins
     this.server.to('role:ADMIN').emit('booking:new', notification);
 
     // Log metric
     // Sentry.metrics.increment('bookings.new');
-    
+
     this.logger.log(`New booking notification sent: ${booking.id}`);
   }
 
@@ -178,21 +190,25 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     // Notify assigned technician with specific details
     const techNotification = {
       type: 'NEW_ASSIGNMENT',
-      data: { 
-        bookingId, 
+      data: {
+        bookingId,
         scheduledDate: assignment.scheduledDate,
         customerName: assignment.customerName,
         address: assignment.address,
       },
       timestamp: new Date().toISOString(),
     };
-    
-    this.server.to(`user:${assignment.technicianId}`).emit('assignment:new', techNotification);
+
+    this.server
+      .to(`user:${assignment.technicianId}`)
+      .emit('assignment:new', techNotification);
 
     // Log metrics
     // Sentry.metrics.increment('bookings.assigned');
-    
-    this.logger.log(`Booking ${bookingId} assigned to technician ${assignment.technicianId}`);
+
+    this.logger.log(
+      `Booking ${bookingId} assigned to technician ${assignment.technicianId}`,
+    );
   }
 
   notifyBookingCompleted(bookingId: string, completionData: any) {
@@ -204,7 +220,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     // Notify relevant parties
     this.server.to('booking-updates').emit('booking:completed', notification);
-    
+
     // Log metric
     // Sentry.metrics.increment('bookings.completed');
   }
@@ -218,7 +234,7 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     // Notify specific technician
     this.server.to(`user:${technicianId}`).emit('route:updated', notification);
-    
+
     // Notify CSMs for monitoring
     this.server.to('role:CSM').emit('route:updated', {
       ...notification,

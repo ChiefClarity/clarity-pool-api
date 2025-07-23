@@ -25,7 +25,7 @@ export class BookingService {
       address: string;
       city: string;
       state: string;
-      zipcode: string;  // Widget sends lowercase
+      zipcode: string; // Widget sends lowercase
       gateCode?: string;
       accessNotes?: string;
       hasDogs?: string;
@@ -58,7 +58,7 @@ export class BookingService {
         address: widgetData.address.address,
         city: widgetData.address.city,
         state: widgetData.address.state,
-        zipCode: widgetData.address.zipcode,  // Map lowercase from widget to capital C for database
+        zipCode: widgetData.address.zipcode, // Map lowercase from widget to capital C for database
       };
 
       // Create customer in Poolbrain
@@ -69,17 +69,23 @@ export class BookingService {
         // Email service requires waterBodyGallons as number, transform null/undefined to 0
         const emailData = {
           ...widgetData,
-          waterBodies: widgetData.waterBodies.map(body => ({
+          waterBodies: widgetData.waterBodies.map((body) => ({
             ...body,
-            waterBodyGallons: body.waterBodyGallons || 0
-          }))
+            waterBodyGallons: body.waterBodyGallons || 0,
+          })),
         };
-        
-        await this.email.sendBookingNotification(emailData, poolbrainResponse.data.newCustomerAddrId);
+
+        await this.email.sendBookingNotification(
+          emailData,
+          poolbrainResponse.data.newCustomerAddrId,
+        );
         this.logger.log('Booking notification email sent successfully');
       } catch (emailError) {
         // Log error but don't fail the booking
-        this.logger.error('Failed to send booking notification email:', emailError);
+        this.logger.error(
+          'Failed to send booking notification email:',
+          emailError,
+        );
         // The email service already handles retries and queuing
       }
 
@@ -169,7 +175,9 @@ export class BookingService {
       const sessions = await this.prisma.onboardingSession.findMany({
         where: {
           ...(filters?.status && { status: filters.status }),
-          ...(filters?.technicianId && { technicianId: parseInt(filters.technicianId) }),
+          ...(filters?.technicianId && {
+            technicianId: parseInt(filters.technicianId),
+          }),
           ...(filters?.dateFrom && {
             scheduledFor: {
               gte: new Date(filters.dateFrom),
@@ -210,7 +218,7 @@ export class BookingService {
 
   async assignTechnicianToBooking(
     id: string,
-    data: { technicianId: string; scheduledDate?: Date; notes?: string }
+    data: { technicianId: string; scheduledDate?: Date; notes?: string },
   ) {
     try {
       // First get the existing session
@@ -231,7 +239,7 @@ export class BookingService {
           ...(data.scheduledDate && { scheduledFor: data.scheduledDate }),
           ...(data.notes && {
             stepsCompleted: {
-              ...(existingSession.stepsCompleted as object || {}),
+              ...((existingSession.stepsCompleted as object) || {}),
               assignmentNotes: data.notes,
             },
           }),
@@ -241,7 +249,7 @@ export class BookingService {
           technician: true,
         },
       });
-      
+
       return session;
     } catch (error) {
       this.logger.error('Failed to assign technician', error);
@@ -250,7 +258,12 @@ export class BookingService {
   }
 
   async bulkAssign(
-    assignments: Array<{ bookingId: string; technicianId: string; scheduledDate?: Date; notes?: string }>
+    assignments: Array<{
+      bookingId: string;
+      technicianId: string;
+      scheduledDate?: Date;
+      notes?: string;
+    }>,
   ) {
     try {
       const updates = await Promise.all(
@@ -259,8 +272,8 @@ export class BookingService {
             technicianId: assignment.technicianId,
             scheduledDate: assignment.scheduledDate,
             notes: assignment.notes,
-          })
-        )
+          }),
+        ),
       );
       return updates;
     } catch (error) {

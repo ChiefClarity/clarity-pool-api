@@ -21,6 +21,10 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { AIModule } from './ai/ai.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { RoutesModule } from './routes/routes.module';
+import { ReportsModule } from './reports/reports.module';
+import { WeatherModule } from './weather/weather.module';
+import { ClaudeAnalysisModule } from './claude-analysis/claude-analysis.module';
+import { AdminModule } from './admin/admin.module';
 import { SentryConfig } from './config/sentry.config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { SecurityMiddleware } from './common/middleware/security.middleware';
@@ -55,6 +59,10 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     AIModule,
     UploadsModule,
     RoutesModule,
+    ReportsModule,
+    WeatherModule,
+    ClaudeAnalysisModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

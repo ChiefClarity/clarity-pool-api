@@ -2,19 +2,22 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class BookingEmailTemplate {
-  generateBookingEmail(data: any, poolbrainId: number): { html: string; text: string } {
+  generateBookingEmail(
+    data: any,
+    poolbrainId: number,
+  ): { html: string; text: string } {
     const html = this.generateHtmlEmail(data, poolbrainId);
     const text = this.generateTextEmail(data, poolbrainId);
-    
+
     return { html, text };
   }
 
   private generateHtmlEmail(data: any, poolbrainId: number): string {
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
     const currentTime = new Date().toLocaleTimeString('en-US');
 
@@ -229,17 +232,23 @@ export class BookingEmailTemplate {
         
         <!-- Content -->
         <div class="content">
-            ${data.address.hasDogs === 'yes' ? `
+            ${
+              data.address.hasDogs === 'yes'
+                ? `
             <!-- Dog Alert -->
             <div class="dog-alert">
                 <h2><span>🐕</span> DOG ALERT - Property Has Dogs</h2>
                 <div class="dog-alert-content">
-                    ${data.address.dogDetails ? 
-                        `<strong>Details provided by customer:</strong><br>${this.escapeHtml(data.address.dogDetails)}` : 
-                        '<strong>No specific details provided about the dogs.</strong><br>Please contact customer for more information before visit.'}
+                    ${
+                      data.address.dogDetails
+                        ? `<strong>Details provided by customer:</strong><br>${this.escapeHtml(data.address.dogDetails)}`
+                        : '<strong>No specific details provided about the dogs.</strong><br>Please contact customer for more information before visit.'
+                    }
                 </div>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <!-- Customer Information -->
             <div class="section">
@@ -281,24 +290,34 @@ export class BookingEmailTemplate {
                     <div class="info-label">Zip Code:</div>
                     <div class="info-value">${data.address.zipcode}</div>
                 </div>
-                ${data.address.gateCode ? `
+                ${
+                  data.address.gateCode
+                    ? `
                 <div class="info-row">
                     <div class="info-label">Gate Code:</div>
                     <div class="info-value"><strong>${this.escapeHtml(data.address.gateCode)}</strong></div>
                 </div>
-                ` : ''}
-                ${data.address.accessNotes ? `
+                `
+                    : ''
+                }
+                ${
+                  data.address.accessNotes
+                    ? `
                 <div class="info-row">
                     <div class="info-label">Access Notes:</div>
                     <div class="info-value">${this.escapeHtml(data.address.accessNotes)}</div>
                 </div>
-                ` : ''}
+                `
+                    : ''
+                }
             </div>
             
             <!-- Pool Information -->
             <div class="section">
                 <h2><span>🏊</span> Pool Information</h2>
-                ${data.waterBodies.map((pool: any, index: number) => `
+                ${data.waterBodies
+                  .map(
+                    (pool: any, index: number) => `
                 <div class="water-body-item">
                     <h3>Water Body ${index + 1}: ${this.escapeHtml(pool.waterBodyName)}</h3>
                     <div class="info-row">
@@ -309,17 +328,25 @@ export class BookingEmailTemplate {
                         <div class="info-label">Size:</div>
                         <div class="info-value">${pool.waterBodyGallons.toLocaleString()} gallons</div>
                     </div>
-                    ${pool.concerns ? `
+                    ${
+                      pool.concerns
+                        ? `
                     <div class="info-row">
                         <div class="info-label">Concerns:</div>
                         <div class="info-value">${this.escapeHtml(pool.concerns)}</div>
                     </div>
-                    ` : ''}
+                    `
+                        : ''
+                    }
                 </div>
-                `).join('')}
+                `,
+                  )
+                  .join('')}
             </div>
             
-            ${data.metadata.currentServiceDay ? `
+            ${
+              data.metadata.currentServiceDay
+                ? `
             <!-- Current Service -->
             <div class="section">
                 <h2><span>📅</span> Current Pool Service</h2>
@@ -328,15 +355,21 @@ export class BookingEmailTemplate {
                     <div class="info-value"><strong>${data.metadata.currentServiceDay}</strong></div>
                 </div>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
             
-            ${data.metadata.additionalComments ? `
+            ${
+              data.metadata.additionalComments
+                ? `
             <!-- Additional Comments -->
             <div class="section">
                 <h2><span>💬</span> Additional Comments from Customer</h2>
                 <p>${this.escapeHtml(data.metadata.additionalComments)}</p>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <!-- Action Items -->
             <div class="action-items">
@@ -380,12 +413,16 @@ NEW POOL ANALYSIS RESERVATION
 ==============================
 Received: ${currentDate} at ${currentTime}
 
-${data.address.hasDogs === 'yes' ? `
+${
+  data.address.hasDogs === 'yes'
+    ? `
 ⚠️ DOG ALERT - PROPERTY HAS DOGS ⚠️
 ${data.address.dogDetails || 'No specific details provided. Contact customer for more information.'}
 ==============================
 
-` : ''}
+`
+    : ''
+}
 CUSTOMER INFORMATION
 --------------------
 Name: ${data.customer.firstName} ${data.customer.lastName}
@@ -404,24 +441,36 @@ ${data.address.accessNotes ? `Access Notes: ${data.address.accessNotes}` : ''}
 
 POOL INFORMATION
 ----------------
-${data.waterBodies.map((pool: any, index: number) => `
+${data.waterBodies
+  .map(
+    (pool: any, index: number) => `
 Water Body ${index + 1}: ${pool.waterBodyName}
 Type: ${this.getPoolTypeName(pool.waterBodyType)}
 Size: ${pool.waterBodyGallons.toLocaleString()} gallons
 ${pool.concerns ? `Concerns: ${pool.concerns}` : ''}
-`).join('\n')}
+`,
+  )
+  .join('\n')}
 
-${data.metadata.currentServiceDay ? `
+${
+  data.metadata.currentServiceDay
+    ? `
 CURRENT SERVICE
 ---------------
 Service Day: ${data.metadata.currentServiceDay}
-` : ''}
+`
+    : ''
+}
 
-${data.metadata.additionalComments ? `
+${
+  data.metadata.additionalComments
+    ? `
 ADDITIONAL COMMENTS
 -------------------
 ${data.metadata.additionalComments}
-` : ''}
+`
+    : ''
+}
 
 REQUIRED ACTIONS
 ----------------
@@ -446,28 +495,28 @@ Do not reply directly to this email
 
   private escapeHtml(text: string): string {
     if (!text) return '';
-    
+
     const map: { [key: string]: string } = {
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
-      "'": '&#039;'
+      "'": '&#039;',
     };
-    
-    return text.replace(/[&<>"']/g, m => map[m]);
+
+    return text.replace(/[&<>"']/g, (m) => map[m]);
   }
 
   private formatPhoneNumber(phone: string): string {
     if (!phone) return '';
-    
+
     const cleaned = phone.replace(/\D/g, '');
     const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
-    
+
     if (match) {
       return `(${match[1]}) ${match[2]}-${match[3]}`;
     }
-    
+
     return phone;
   }
 
@@ -477,9 +526,9 @@ Do not reply directly to this email
       2: 'Above-ground Pool',
       3: 'Spa/Hot Tub',
       4: 'Fountain',
-      5: 'Other Water Feature'
+      5: 'Other Water Feature',
     };
-    
+
     return types[type] || 'Unknown';
   }
 }

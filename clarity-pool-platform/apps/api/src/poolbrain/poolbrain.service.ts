@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { 
-  CreateCustomerDto, 
-  PoolbrainCustomerDto, 
-  mapToPoolbrainCustomer 
+import { HttpService } from '@nestjs/axios';
+import {
+  CreateCustomerDto,
+  PoolbrainCustomerDto,
+  mapToPoolbrainCustomer,
 } from './dto/poolbrain-customer.dto';
+import { JobDetailsResponse } from '../reports/interfaces/report.interface';
 
 interface WidgetData {
   customer: {
@@ -16,7 +18,7 @@ interface WidgetData {
     address: string;
     city: string;
     state: string;
-    zipcode: string;  // Widget sends lowercase
+    zipcode: string; // Widget sends lowercase
     gateCode?: string;
     accessNotes?: string;
     hasDogs?: string;
@@ -35,7 +37,7 @@ export class PoolbrainService {
   private readonly apiUrl: string;
   private readonly apiKey: string;
 
-  constructor() {
+  constructor(private httpService: HttpService) {
     this.apiUrl = process.env.POOLBRAIN_API_URL || '';
     this.apiKey = process.env.POOLBRAIN_API_KEY || '';
 
@@ -46,7 +48,9 @@ export class PoolbrainService {
     }
   }
 
-  private transformToPoolbrainFormat(widgetData: WidgetData): PoolbrainCustomerDto {
+  private transformToPoolbrainFormat(
+    widgetData: WidgetData,
+  ): PoolbrainCustomerDto {
     this.logger.log('Transforming widget data to Poolbrain format:', {
       widgetZipcode: widgetData.address.zipcode,
       widgetAddress: widgetData.address,
@@ -61,17 +65,21 @@ export class PoolbrainService {
       address: widgetData.address.address,
       city: widgetData.address.city,
       state: widgetData.address.state,
-      zipCode: widgetData.address.zipcode,  // Note: widget sends lowercase, but we map to zipCode
+      zipCode: widgetData.address.zipcode, // Note: widget sends lowercase, but we map to zipCode
       gateCode: widgetData.address.gateCode,
       accessNotes: widgetData.address.accessNotes,
       hasDogs: widgetData.address.hasDogs || 'no',
     };
 
     // Get water body gallons from the first water body (if exists)
-    const waterBodyGallons = widgetData.waterBodies?.[0]?.waterBodyGallons || null;
+    const waterBodyGallons =
+      widgetData.waterBodies?.[0]?.waterBodyGallons || null;
 
     // Use the mapper function to transform to Poolbrain format
-    const poolbrainData = mapToPoolbrainCustomer({ ...createCustomerDto, waterBodyGallons });
+    const poolbrainData = mapToPoolbrainCustomer({
+      ...createCustomerDto,
+      waterBodyGallons,
+    });
 
     this.logger.log('Transformed Poolbrain data:', poolbrainData);
     return poolbrainData;
@@ -81,14 +89,18 @@ export class PoolbrainService {
     try {
       // Validate input data
       if (!widgetData?.customer || !widgetData?.address) {
-        const error = new Error('Invalid widget data: missing customer or address information');
+        const error = new Error(
+          'Invalid widget data: missing customer or address information',
+        );
         this.logger.error('Validation error:', error.message);
         throw error;
       }
 
       // Check API configuration
       if (!this.apiKey) {
-        this.logger.warn('Using mock Poolbrain response (no API key configured)');
+        this.logger.warn(
+          'Using mock Poolbrain response (no API key configured)',
+        );
         return {
           data: {
             newCustomerAddrId: Math.floor(Math.random() * 10000),
@@ -104,7 +116,9 @@ export class PoolbrainService {
         poolbrainPayload = this.transformToPoolbrainFormat(widgetData);
       } catch (transformError) {
         this.logger.error('Failed to transform widget data:', transformError);
-        throw new Error(`Data transformation failed: ${transformError.message}`);
+        throw new Error(
+          `Data transformation failed: ${transformError.message}`,
+        );
       }
 
       // Log the API call details
@@ -159,15 +173,17 @@ export class PoolbrainService {
         stack: error.stack,
         widgetData: {
           customerEmail: widgetData?.customer?.email,
-          customerName: widgetData?.customer ? 
-            `${widgetData.customer.firstName} ${widgetData.customer.lastName}` : 
-            'Unknown',
+          customerName: widgetData?.customer
+            ? `${widgetData.customer.firstName} ${widgetData.customer.lastName}`
+            : 'Unknown',
         },
       });
 
       // Development fallback
       if (process.env.NODE_ENV === 'development') {
-        this.logger.warn('Development mode: returning mock response after error');
+        this.logger.warn(
+          'Development mode: returning mock response after error',
+        );
         return {
           data: {
             newCustomerAddrId: Math.floor(Math.random() * 10000),
@@ -318,13 +334,16 @@ export class PoolbrainService {
     try {
       this.logger.log('Fetching technicians with routes from Poolbrain');
 
-      const response = await fetch(`${this.apiUrl}/get_technicians_with_routes`, {
-        method: 'GET',
-        headers: {
-          'ACCESS-KEY': this.apiKey,
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${this.apiUrl}/get_technicians_with_routes`,
+        {
+          method: 'GET',
+          headers: {
+            'ACCESS-KEY': this.apiKey,
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       const result = await response.json();
 
@@ -338,7 +357,7 @@ export class PoolbrainService {
       return result;
     } catch (error) {
       this.logger.error('Failed to fetch technicians with routes:', error);
-      
+
       // Return mock data as fallback
       return [
         {
@@ -356,6 +375,50 @@ export class PoolbrainService {
           },
         },
       ];
+    }
+  }
+
+  async getJobDetails(jobIds: number[]): Promise<JobDetailsResponse> {
+    if (!this.apiKey) {
+      return { data: [], mock: true };
+    }
+
+    try {
+      this.logger.log(`Fetching job details for IDs: ${jobIds.join(',')}`);
+
+      // Use fetch instead of HttpService to avoid RxJS version conflicts
+      const response = await fetch(
+        `${this.apiUrl}/route_stops_job_list_details?jobId=${jobIds.join(',')}`,
+        {
+          method: 'GET',
+          headers: {
+            'ACCESS-KEY': this.apiKey,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          `API error: ${response.status} - ${JSON.stringify(data)}`,
+        );
+      }
+
+      this.logger.log(`Retrieved ${data.length} job details`);
+      return { data };
+    } catch (error) {
+      this.logger.error('Failed to fetch job details:', {
+        error: error.message,
+        jobIds,
+      });
+
+      if (process.env.NODE_ENV === 'development') {
+        return { data: [], mock: true, error: error.message };
+      }
+
+      throw error;
     }
   }
 }

@@ -1,8 +1,8 @@
-import { 
-  Controller, 
-  Get, 
+import {
+  Controller,
+  Get,
   Post,
-  Body, 
+  Body,
   Param,
   UseGuards,
   UseFilters,
@@ -34,13 +34,13 @@ export class RoutesController {
     try {
       // Get booking details
       const booking = await this.bookingService.findOne(bookingId);
-      
+
       // Get route recommendations
       const recommendations = await this.routeIntelligence.getRecommendations(
-        bookingId, 
-        booking
+        bookingId,
+        booking,
       );
-      
+
       return {
         success: true,
         bookingId,
@@ -66,10 +66,11 @@ export class RoutesController {
     try {
       // Validate input
       const validatedData = RouteAnalysisSchema.parse(data);
-      
+
       // Analyze route options
-      const analysis = await this.routeIntelligence.analyzeRouteOptions(validatedData);
-      
+      const analysis =
+        await this.routeIntelligence.analyzeRouteOptions(validatedData);
+
       return {
         success: true,
         ...analysis,

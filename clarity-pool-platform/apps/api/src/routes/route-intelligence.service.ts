@@ -23,20 +23,26 @@ export class RouteIntelligenceService {
     @Inject('CACHE_MANAGER') private cache: any,
   ) {}
 
-  async getRecommendations(bookingId: string, booking: any): Promise<RouteRecommendation[]> {
+  async getRecommendations(
+    bookingId: string,
+    booking: any,
+  ): Promise<RouteRecommendation[]> {
     return Sentry.startSpan(
       { name: 'RouteIntelligence.getRecommendations' },
       async () => {
         try {
           const cacheKey = `recommendations:${bookingId}`;
-          const cached = await this.cache.get(cacheKey) as RouteRecommendation[] | undefined;
-          
+          const cached = (await this.cache.get(cacheKey)) as
+            | RouteRecommendation[]
+            | undefined;
+
           if (cached) {
             return cached;
           }
 
-          const technicians = await this.poolbrain.getTechniciansWithRoutes() || [];
-          
+          const technicians =
+            (await this.poolbrain.getTechniciansWithRoutes()) || [];
+
           const recommendations = await Promise.all(
             technicians.map(async (tech: any) => {
               const score = await this.calculateTechnicianScore(tech, booking);
@@ -50,71 +56,85 @@ export class RouteIntelligenceService {
                 routeStopCount: tech.primaryRoute?.stops?.length || 0,
                 capacityAvailable: tech.maxCapacity - tech.currentCapacity,
               };
-            })
+            }),
           );
 
           const sorted = recommendations.sort((a, b) => b.score - a.score);
-          
+
           await this.cache.set(cacheKey, sorted, 300);
-          
+
           return sorted;
         } catch (error) {
           this.logger.error('Failed to get recommendations', error);
           return [];
         }
-      }
+      },
     );
   }
 
-  async analyzeRouteOptions(data: { address: string; preferredDays: string[] }) {
+  async analyzeRouteOptions(data: {
+    address: string;
+    preferredDays: string[];
+  }) {
     return Sentry.startSpan(
       { name: 'RouteIntelligence.analyzeRouteOptions' },
       async () => {
         try {
           // Get all technicians
           const technicians = await this.poolbrain.getTechniciansWithRoutes();
-          
+
           // Analyze each day
           const analysis = await Promise.all(
             data.preferredDays.map(async (day) => {
               // Find technicians working on this day
               const dayTechs = technicians.filter(
-                (tech: any) => tech.primaryRoute?.dayOfWeek?.toLowerCase() === day.toLowerCase()
+                (tech: any) =>
+                  tech.primaryRoute?.dayOfWeek?.toLowerCase() ===
+                  day.toLowerCase(),
               );
-              
+
               // Calculate average metrics for the day
               const distances = await Promise.all(
-                dayTechs.map((tech: any) => 
-                  this.calculateDistance(data.address, tech.primaryRoute?.stops || [])
-                )
+                dayTechs.map((tech: any) =>
+                  this.calculateDistance(
+                    data.address,
+                    tech.primaryRoute?.stops || [],
+                  ),
+                ),
               );
-              
-              const avgDistance = distances.length > 0
-                ? distances.reduce((sum, d) => sum + d, 0) / distances.length
-                : 0;
-              
+
+              const avgDistance =
+                distances.length > 0
+                  ? distances.reduce((sum, d) => sum + d, 0) / distances.length
+                  : 0;
+
               const totalCapacity = dayTechs.reduce(
-                (sum: number, tech: any) => sum + (tech.maxCapacity - tech.currentCapacity), 
-                0
+                (sum: number, tech: any) =>
+                  sum + (tech.maxCapacity - tech.currentCapacity),
+                0,
               );
-              
+
               return {
                 day,
                 technicianCount: dayTechs.length,
                 averageDistance: avgDistance,
                 totalAvailableCapacity: totalCapacity,
-                recommendation: this.getDayRecommendation(avgDistance, totalCapacity, dayTechs.length),
+                recommendation: this.getDayRecommendation(
+                  avgDistance,
+                  totalCapacity,
+                  dayTechs.length,
+                ),
               };
-            })
+            }),
           );
-          
+
           // Sort by recommendation score
           const sorted = analysis.sort((a, b) => {
             const scoreA = this.calculateDayScore(a);
             const scoreB = this.calculateDayScore(b);
             return scoreB - scoreA;
           });
-          
+
           return {
             recommendedDay: sorted[0]?.day || null,
             analysis: sorted,
@@ -128,11 +148,14 @@ export class RouteIntelligenceService {
           this.logger.error('Failed to analyze route options', error);
           throw error;
         }
-      }
+      },
     );
   }
 
-  private async calculateTechnicianScore(technician: TechnicianData, booking: any): Promise<TechnicianScore> {
+  private async calculateTechnicianScore(
+    technician: TechnicianData,
+    booking: any,
+  ): Promise<TechnicianScore> {
     // Complex scoring algorithm
     const factors = {
       proximity: 0,
@@ -150,9 +173,10 @@ export class RouteIntelligenceService {
     factors.proximity = Math.max(0, 100 - distance * 2);
 
     // Calculate capacity score (0-100)
-    const capacityPercent = technician.maxCapacity > 0
-      ? (technician.currentCapacity / technician.maxCapacity) * 100
-      : 100;
+    const capacityPercent =
+      technician.maxCapacity > 0
+        ? (technician.currentCapacity / technician.maxCapacity) * 100
+        : 100;
     factors.capacity = Math.max(0, 100 - capacityPercent);
 
     // Preferred day match (0 or 50)
@@ -168,7 +192,10 @@ export class RouteIntelligenceService {
       factors.specialRequirements += 20;
     }
 
-    if (booking.requiresSpecialEquipment && technician.specialEquipmentCertified) {
+    if (
+      booking.requiresSpecialEquipment &&
+      technician.specialEquipmentCertified
+    ) {
       factors.specialRequirements += 15;
     }
 
@@ -181,29 +208,32 @@ export class RouteIntelligenceService {
     };
   }
 
-  private async calculateDistance(address: string, routeStops: any[]): Promise<number> {
+  private async calculateDistance(
+    address: string,
+    routeStops: any[],
+  ): Promise<number> {
     // In production, use Google Maps API
     // For now, mock calculation based on address similarity
     try {
       // Extract zip code from address for basic proximity
       const zipMatch = address.match(/\b\d{5}\b/);
       const addressZip = zipMatch ? zipMatch[0] : '';
-      
+
       if (!addressZip || routeStops.length === 0) {
         return 10; // Default distance if no data
       }
-      
+
       // Calculate average distance based on zip code proximity
-      const distances = routeStops.map(stop => {
+      const distances = routeStops.map((stop) => {
         const stopZipMatch = stop.address?.match(/\b\d{5}\b/);
         const stopZip = stopZipMatch ? stopZipMatch[0] : '';
-        
+
         if (addressZip === stopZip) return 0.5; // Same zip code
         if (Math.abs(parseInt(addressZip) - parseInt(stopZip)) < 10) return 2; // Nearby zip
         if (Math.abs(parseInt(addressZip) - parseInt(stopZip)) < 100) return 5; // Same region
         return 10; // Far away
       });
-      
+
       return distances.length > 0
         ? distances.reduce((sum, d) => sum + d, 0) / distances.length
         : 10;
@@ -213,7 +243,11 @@ export class RouteIntelligenceService {
     }
   }
 
-  private getDayRecommendation(avgDistance: number, capacity: number, techCount: number): string {
+  private getDayRecommendation(
+    avgDistance: number,
+    capacity: number,
+    techCount: number,
+  ): string {
     if (techCount === 0) return 'No technicians available';
     if (capacity === 0) return 'No capacity available';
     if (avgDistance < 2 && capacity > 5) return 'Excellent';
@@ -224,16 +258,16 @@ export class RouteIntelligenceService {
 
   private calculateDayScore(dayAnalysis: any): number {
     let score = 0;
-    
+
     // More technicians = better
     score += dayAnalysis.technicianCount * 10;
-    
+
     // Lower distance = better
     score += Math.max(0, 100 - dayAnalysis.averageDistance * 10);
-    
+
     // More capacity = better
     score += dayAnalysis.totalAvailableCapacity * 5;
-    
+
     return score;
   }
 }

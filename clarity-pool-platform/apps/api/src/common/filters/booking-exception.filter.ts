@@ -1,10 +1,10 @@
-import { 
-  ExceptionFilter, 
-  Catch, 
-  ArgumentsHost, 
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
@@ -19,9 +19,10 @@ export class BookingExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status = exception instanceof HttpException
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
     // Log to Sentry for server errors
     if (status >= 500) {
@@ -35,9 +36,10 @@ export class BookingExceptionFilter implements ExceptionFilter {
       });
     }
 
-    const message = exception instanceof HttpException
-      ? exception.getResponse()
-      : { message: 'Internal server error' };
+    const message =
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : { message: 'Internal server error' };
 
     // Log error details
     const user = request['user'] as User | undefined;

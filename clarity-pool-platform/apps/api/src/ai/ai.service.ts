@@ -1736,37 +1736,41 @@ Format your response as a JSON object with these sections:
   ): Promise<any> {
     try {
       this.logger.log(`Analyzing pool surface for session: ${sessionId}`);
-      
+
       // Normalize to array
       const imageArray = Array.isArray(images) ? images : [images];
       this.logger.log(`Processing ${imageArray.length} surface images`);
 
       const uploadedImages = [];
-      
+
       // Upload all images
       for (let i = 0; i < imageArray.length; i++) {
-        const base64Data = imageArray[i].replace(/^data:image\/\w+;base64,/, '');
+        const base64Data = imageArray[i].replace(
+          /^data:image\/\w+;base64,/,
+          '',
+        );
         const imageBuffer = Buffer.from(base64Data, 'base64');
 
         const uploadResult = await this.uploadsService.uploadImage(
           imageBuffer,
           'image/jpeg',
           'pool',
-          { 
-            sessionId, 
+          {
+            sessionId,
             analysisType: 'pool-surface',
-            imageIndex: i.toString()
+            imageIndex: i.toString(),
           },
         );
-        
+
         uploadedImages.push(uploadResult.url);
       }
 
       // Analyze primary image with context of others
       const primaryImage = uploadedImages[0];
-      const additionalContext = imageArray.length > 1 
-        ? `\n\nNote: ${imageArray.length} total images provided. Focus on the main surface issues visible across all images.`
-        : '';
+      const additionalContext =
+        imageArray.length > 1
+          ? `\n\nNote: ${imageArray.length} total images provided. Focus on the main surface issues visible across all images.`
+          : '';
 
       // Use provider fallback for analysis
       let lastError: Error | null = null;

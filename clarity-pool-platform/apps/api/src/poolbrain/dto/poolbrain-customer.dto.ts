@@ -28,7 +28,9 @@ export interface PoolbrainCustomerDto {
   waterBodyGallons: number;
 }
 
-export function mapToPoolbrainCustomer(customer: CreateCustomerDto & { waterBodyGallons?: number | null }): PoolbrainCustomerDto {
+export function mapToPoolbrainCustomer(
+  customer: CreateCustomerDto & { waterBodyGallons?: number | null },
+): PoolbrainCustomerDto {
   return {
     firstName: customer.firstName,
     lastName: customer.lastName,

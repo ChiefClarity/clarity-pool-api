@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { BookingEmailTemplate } from './templates/booking-notification.template';
+import { WeeklyReportTemplate } from '../reports/templates/weekly-report.template';
+import { WeeklyReportData } from '../reports/interfaces/report.interface';
 
 interface EmailOptions {
   to: string | string[];
@@ -25,7 +27,7 @@ interface BookingData {
     address: string;
     city: string;
     state: string;
-    zipcode: string;  // Widget sends lowercase
+    zipcode: string; // Widget sends lowercase
     gateCode?: string;
     accessNotes?: string;
     hasDogs?: string;
@@ -52,10 +54,11 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly maxRetries = 3;
   private readonly retryDelay = 1000; // Start with 1 second
-  
+
   constructor(
     private configService: ConfigService,
     private emailTemplate: BookingEmailTemplate,
+    private weeklyReportTemplate: WeeklyReportTemplate,
   ) {
     this.initializeTransporter();
   }
@@ -104,9 +107,13 @@ export class EmailService {
       );
 
       // Email configuration
-      const frontChannelEmail = this.configService.get<string>('FRONT_CHANNEL_EMAIL');
+      const frontChannelEmail = this.configService.get<string>(
+        'FRONT_CHANNEL_EMAIL',
+      );
       if (!frontChannelEmail) {
-        throw new Error('FRONT_CHANNEL_EMAIL environment variable is not configured');
+        throw new Error(
+          'FRONT_CHANNEL_EMAIL environment variable is not configured',
+        );
       }
 
       const mailOptions: EmailOptions = {
@@ -119,7 +126,7 @@ export class EmailService {
 
       // Send with retry logic
       const result = await this.sendWithRetry(mailOptions);
-      
+
       if (result.success) {
         this.logger.log(
           `Booking notification sent successfully for customer ${poolbrainCustomerId}`,
@@ -137,10 +144,10 @@ export class EmailService {
         `Failed to send booking notification for customer ${poolbrainCustomerId}:`,
         error,
       );
-      
+
       // Queue for retry (in production, save to database)
       await this.queueFailedEmail(bookingData, poolbrainCustomerId, error);
-      
+
       // Don't throw - we don't want to break the booking flow
       return false;
     }
@@ -149,26 +156,28 @@ export class EmailService {
   private async sendWithRetry(
     mailOptions: EmailOptions,
     attempt = 1,
-  ): Promise<{ success: boolean; messageId?: string; response?: string; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    messageId?: string;
+    response?: string;
+    error?: string;
+  }> {
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      
+
       return {
         success: true,
         messageId: info.messageId,
         response: info.response,
       };
     } catch (error) {
-      this.logger.warn(
-        `Email send attempt ${attempt} failed:`,
-        error.message,
-      );
+      this.logger.warn(`Email send attempt ${attempt} failed:`, error.message);
 
       if (attempt < this.maxRetries) {
         // Exponential backoff
         const delay = this.retryDelay * Math.pow(2, attempt - 1);
         await this.sleep(delay);
-        
+
         return this.sendWithRetry(mailOptions, attempt + 1);
       }
 
@@ -183,7 +192,8 @@ export class EmailService {
     const errors: string[] = [];
 
     // Required fields validation
-    if (!data.customer?.firstName) errors.push('Customer first name is required');
+    if (!data.customer?.firstName)
+      errors.push('Customer first name is required');
     if (!data.customer?.lastName) errors.push('Customer last name is required');
     if (!data.customer?.email) errors.push('Customer email is required');
     if (!data.address?.address) errors.push('Address is required');
@@ -229,27 +239,30 @@ export class EmailService {
   }
 
   private async queueFailedEmail(
-    data: BookingData,
-    customerId: number,
+    data: BookingData | WeeklyReportData,
+    customerIdOrEmail: number | string,
     error: any,
   ): Promise<void> {
     // In production, save to database for manual processing
     const failedEmail = {
-      customerId,
-      bookingData: data,
+      customerIdOrEmail,
+      data,
       error: error.message,
       attemptedAt: new Date(),
       stack: error.stack,
     };
 
-    this.logger.error('Queuing failed email for manual processing:', failedEmail);
-    
+    this.logger.error(
+      'Queuing failed email for manual processing:',
+      failedEmail,
+    );
+
     // TODO: Save to database
     // await this.prisma.failedEmail.create({ data: failedEmail });
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   // Public method to test email configuration
@@ -262,6 +275,58 @@ export class EmailService {
       this.logger.error('Email configuration test failed:', error);
       return false;
     }
+  }
+
+  async sendWeeklyReport(
+    to: string,
+    reportData: WeeklyReportData,
+    attachments?: any[],
+  ): Promise<boolean> {
+    try {
+      // Validate input
+      if (!to || !this.validateEmail(to)) {
+        throw new Error('Invalid recipient email');
+      }
+
+      const { html, text } =
+        this.weeklyReportTemplate.generateReport(reportData);
+
+      const result = await this.sendWithRetry({
+        to,
+        subject: `Your Pool Health Report - ${reportData.healthScore}/100`,
+        html,
+        text,
+        attachments,
+      });
+
+      if (result.success) {
+        this.logger.log(
+          `Weekly report sent successfully for job ${reportData.jobId}`,
+          {
+            messageId: result.messageId,
+            recipient: to,
+          },
+        );
+        return true;
+      } else {
+        throw new Error(result.error || 'Email send failed');
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to send weekly report for job ${reportData.jobId}:`,
+        error,
+      );
+
+      // Queue for retry - DON'T throw to avoid breaking report flow
+      await this.queueFailedEmail(reportData, to, error);
+
+      return false;
+    }
+  }
+
+  private validateEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   }
 
   // Keep existing methods for backward compatibility

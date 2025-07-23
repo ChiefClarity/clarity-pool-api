@@ -31,9 +31,13 @@ model Customer {
   waterChemistry    WaterChemistry[]
   equipment         Equipment[]
   poolDetails       PoolDetails?
+  reportPreferences ReportPreferences?
+  reportHistory     ReportHistory[]
+  jobs              Job[]
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  active            Boolean  @default(true)
 }
 
 model OnboardingSession {
@@ -219,6 +223,7 @@ model Technician {
   passwordHash      String?
   
   onboardingSessions OnboardingSession[]
+  jobs              Job[]
   
   active            Boolean  @default(true)
   createdAt         DateTime @default(now())
@@ -230,4 +235,70 @@ enum OnboardingStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+model ReportPreferences {
+  id            Int      @id @default(autoincrement())
+  customerId    Int      @unique
+  customer      Customer @relation(fields: [customerId], references: [id])
+  
+  enabled       Boolean  @default(true)
+  reportDelay   Int      @default(5) // minutes after job completion
+  includeCharts Boolean  @default(true)
+  preferredFormat String @default("html")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ReportHistory {
+  id            Int      @id @default(autoincrement())
+  customerId    Int
+  customer      Customer @relation(fields: [customerId], references: [id])
+  jobId         Int
+  
+  sentAt        DateTime @default(now())
+  healthScore   Int
+  reportType    String   // 'post-service' or 'weekly'
+  opened        Boolean  @default(false)
+  deliveryStatus String?
+  openedAt      DateTime?
+  
+  @@index([customerId, sentAt])
+}
+
+model SystemConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id              Int      @id @default(autoincrement())
+  customerId      Int
+  customer        Customer @relation(fields: [customerId], references: [id])
+  poolbrainJobId  Int?     @unique
+  
+  status          String   // 'scheduled', 'in_progress', 'completed', 'cancelled'
+  scheduledAt     DateTime
+  startedAt       DateTime?
+  completedAt     DateTime?
+  
+  technicianId    Int?
+  technician      Technician? @relation(fields: [technicianId], references: [id])
+  
+  serviceType     String   // 'weekly', 'biweekly', 'monthly', 'one-time'
+  notes           String?
+  
+  chemistryData   Json?    // Chemistry readings from the job
+  equipmentData   Json?    // Equipment status from the job
+  servicesData    Json?    // Services performed during the job
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([customerId, completedAt])
+  @@index([poolbrainJobId])
 }

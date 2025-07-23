@@ -118,16 +118,16 @@ export class OnboardingController {
     @Req() req: any,
   ): Promise<SessionCompletionDto> {
     this.logger.log(`Completing onboarding session: ${sessionId}`);
-    
+
     try {
       const result = await this.onboardingService.completeSession(sessionId);
-      
+
       // Now TypeScript knows the shape, no property checking needed
       if (result.voiceNoteUrl) {
         this.logger.log(`Triggering AI analysis for session ${sessionId}`);
         // AI processing happens asynchronously
       }
-      
+
       return result;
     } catch (error) {
       this.logger.error(`Failed to complete session ${sessionId}:`, error);

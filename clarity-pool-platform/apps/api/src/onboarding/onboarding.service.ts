@@ -192,7 +192,7 @@ export class OnboardingService {
       if (!this.prisma.isDatabaseAvailable()) {
         throw new Error('Database not available');
       }
-      
+
       const result = await this.prisma.onboardingSession.update({
         where: { id: sessionId },
         data: {
@@ -201,9 +201,9 @@ export class OnboardingService {
         },
         include: {
           customer: true,
-        }
+        },
       });
-      
+
       // Map to consistent DTO
       return {
         id: result.id,
@@ -214,10 +214,9 @@ export class OnboardingService {
         voiceNoteUrl: result.voiceNoteUrl || undefined,
         message: 'Session completed successfully',
       };
-      
     } catch (error) {
       console.log('Database not available, returning mock response');
-      
+
       // Mock response with same structure
       return {
         id: sessionId,

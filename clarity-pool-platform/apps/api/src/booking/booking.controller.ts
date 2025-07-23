@@ -73,7 +73,7 @@ export class BookingManagementController {
   @Put(':id/assign')
   async assignTechnician(
     @Param('id') id: string,
-    @Body() data: { technicianId: string; scheduledDate: Date; notes?: string }
+    @Body() data: { technicianId: string; scheduledDate: Date; notes?: string },
   ) {
     return this.bookingService.assignTechnicianToBooking(id, data);
   }
