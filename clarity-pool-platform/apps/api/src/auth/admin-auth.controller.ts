@@ -21,14 +21,27 @@ export class AdminAuthController {
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {
-    this.adminEmails = new Set(
-      this.configService
-        .get('ADMIN_EMAILS', '')
+    // Get admin emails with proper type safety
+    const adminEmailsConfig = this.configService.get<string>('ADMIN_EMAILS', '');
+    
+    this.adminEmails = new Set<string>(
+      adminEmailsConfig
         .split(',')
-        .map(email => email.trim().toLowerCase())
+        .filter((email: string) => email.length > 0)
+        .map((email: string) => email.trim().toLowerCase())
     );
     
-    this.adminPassword = this.configService.get('ADMIN_PASSWORD', '');
+    // Validate admin emails configuration
+    if (this.adminEmails.size === 0) {
+      this.logger.error('No admin emails configured. Check ADMIN_EMAILS environment variable.');
+    }
+    
+    // Get admin password with validation
+    this.adminPassword = this.configService.get<string>('ADMIN_PASSWORD', '');
+    
+    if (!this.adminPassword) {
+      this.logger.error('No admin password configured. Check ADMIN_PASSWORD environment variable.');
+    }
   }
 
   @Post('login')
