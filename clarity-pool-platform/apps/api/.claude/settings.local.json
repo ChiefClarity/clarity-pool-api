@@ -17,7 +17,9 @@
       "Bash(npx prisma migrate dev:*)",
       "Bash(npx prisma:*)",
       "Bash(mv:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(export ADMIN_PASSWORD=\"ChangeThisPassword123!\")",
+      "Bash(npx ts-node:*)"
     ],
     "deny": []
   }
