@@ -222,6 +222,9 @@ model Technician {
   phone             String?
   passwordHash      String?
   
+  // ADD THIS LINE:
+  role              String   @default("technician") // "technician", "admin", "csm"
+  
   onboardingSessions OnboardingSession[]
   jobs              Job[]
   

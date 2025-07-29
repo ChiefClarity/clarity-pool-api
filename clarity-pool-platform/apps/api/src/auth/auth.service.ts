@@ -57,7 +57,11 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { sub: user.id, email: user.email };
+    const payload = { 
+      sub: user.id, 
+      email: user.email,
+      role: user.role || 'technician' // Add role to JWT
+    };
 
     // Access token expires in 15 minutes
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
@@ -75,6 +79,7 @@ export class AuthService {
         name: user.name || `${user.firstName} ${user.lastName}`,
         displayName:
           user.displayName || user.name || `${user.firstName} ${user.lastName}`,
+        role: user.role || 'technician', // Include role in response
       },
       token: accessToken,
       refreshToken: refreshToken,
