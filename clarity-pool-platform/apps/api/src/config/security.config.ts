@@ -113,6 +113,8 @@ export class SecurityConfig {
         'Content-Type',
         'Authorization',
         'X-Requested-With',
+        'X-Request-ID',        // Add this - for request tracking
+        'X-Request-Timestamp', // Add this - for performance monitoring
         'X-Rate-Limit-Bypass', // For internal services
       ],
       exposedHeaders: [
@@ -121,6 +123,7 @@ export class SecurityConfig {
         'X-RateLimit-Limit',
         'X-RateLimit-Remaining',
         'X-RateLimit-Reset',
+        'X-Request-ID', // Add this - return request ID in response
       ],
       maxAge: 86400, // 24 hours
     };
